@@ -1,0 +1,52 @@
+﻿:root {
+  --w: 360px;
+  --pad: 10px;
+  --border: #d9d9d9;
+  --text: #111;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  width: var(--w);
+  color: var(--text);
+}
+
+.wrap { padding: var(--pad); }
+
+.top { display: flex; gap: 8px; margin-bottom: 10px; }
+
+.btn {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: #f4f4f4;
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.btn.primary { background: #eaeaea; }
+
+.field { margin: 10px 0; }
+label { display: block; font-size: 12px; margin-bottom: 6px; color: #333; }
+input, textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px;
+  font-size: 13px;
+}
+
+.advanced { margin-top: 10px; }
+.advanced summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
+
+.tokenBox { margin-top: 10px; }
+.tokenActions { display: flex; gap: 8px; margin-top: 8px; }
+.tokenActions .btn { width: 50%; padding: 8px 10px; font-size: 12px; }
+.tokenStatus { margin-top: 6px; font-size: 12px; color: #444; }
+
+.statusRow { margin: 10px 0; font-size: 12px; }
+.status { color: #0a7; font-weight: 700; }
+
+.err { margin-top: 8px; font-size: 12px; color: #b00; white-space: pre-wrap; }

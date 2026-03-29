@@ -1,0 +1,41 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+ENV/
+.env
+.env.*
+
+# Node
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+.vite/
+dist/
+build/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Tests
+.pytest_cache/
+.mypy_cache/
+
+# Misc
+error.txt
+startup_error.txt
+startup_v2.txt
+startup_v3.txt

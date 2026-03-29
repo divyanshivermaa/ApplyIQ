@@ -1,0 +1,80 @@
+﻿<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Capture</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <button id="btnCapture" class="btn primary">Capture current page</button>
+      </div>
+
+      <div class="field">
+        <label>Job URL</label>
+        <input id="jobUrl" type="text" placeholder="https://..." />
+      </div>
+
+      <div class="field">
+        <label>Role Title</label>
+        <input id="roleTitle" type="text" placeholder="Role title" />
+      </div>
+
+      <div class="field">
+        <label>Company</label>
+        <input id="company" type="text" placeholder="Company name" />
+      </div>
+
+      <div class="field">
+        <label>Location (optional)</label>
+        <input id="location" type="text" placeholder="e.g. Remote, NY" />
+      </div>
+
+      <div class="field">
+        <label>Job Type (optional)</label>
+        <input id="jobType" type="text" placeholder="e.g. Full-time, Intern" />
+      </div>
+
+      <div class="field">
+        <label>Work Mode (optional)</label>
+        <input id="workMode" type="text" placeholder="e.g. Remote, Hybrid" />
+      </div>
+
+      <div class="field">
+        <label for="resumeSlot">Resume</label>
+        <select id="resumeSlot">
+          <option value="1">Resume 1</option>
+          <option value="2">Resume 2</option>
+          <option value="3">Resume 3</option>
+        </select>
+      </div>
+
+      <details class="advanced">
+        <summary>Advanced (Selected text)</summary>
+        <textarea id="selectedText" rows="4" placeholder="Only what you selected (optional). Safe + user controlled."></textarea>
+      </details>
+
+      <div class="field tokenBox">
+        <label>Access Token (JWT)</label>
+        <input id="tokenInput" type="text" placeholder="Paste access_token from /auth/login" />
+        <div class="tokenActions">
+          <button id="btnSaveToken" class="btn">Save token</button>
+          <button id="btnClearToken" class="btn">Clear token</button>
+        </div>
+        <div id="tokenStatus" class="tokenStatus">No token saved</div>
+      </div>
+
+      <div class="statusRow">
+        <span id="status" class="status">-</span>
+      </div>
+
+      <button id="btnSubmit" class="btn">Submit to backend</button>
+
+      <div id="err" class="err"></div>
+    </div>
+
+    <script src="popup_v2.js"></script>
+  </body>
+</html>
+
