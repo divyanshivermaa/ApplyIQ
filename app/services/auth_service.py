@@ -8,13 +8,13 @@ class AuthService:
     def __init__(self):
         self.user_repo = UserRepository()
 
-    def register(self, session: Session, email: str, password: str) -> User:
+    def register(self, session: Session, name: str, email: str, password: str) -> User:
         # Duplicate user avoid karne ke liye pehle check
         existing = self.user_repo.get_by_email(session, email)
         if existing:
             raise ValueError("Email already registered")
 
-        user = User(email=email, hashed_password=hash_password(password))
+        user = User(name=name, email=email, hashed_password=hash_password(password))
         return self.user_repo.create(session, user)
 
     def login(self, session: Session, email: str, password: str) -> str:

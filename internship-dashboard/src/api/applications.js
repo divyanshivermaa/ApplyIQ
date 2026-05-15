@@ -1,6 +1,7 @@
 import { apiFetch } from "./client";
 
-export const listApplications = () => apiFetch("/applications", { method: "GET" });
+export const listApplications = (sort = "recent") =>
+  apiFetch(`/applications?sort=${encodeURIComponent(sort)}`, { method: "GET" });
 
 export const createApplication = (payload) =>
   apiFetch("/applications", {

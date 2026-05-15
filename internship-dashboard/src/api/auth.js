@@ -16,6 +16,18 @@ export async function login(email, password) {
   return data;
 }
 
+export async function register(name, email, password) {
+  const data = await apiFetch("/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email, password }),
+  });
+
+  if (!data?.access_token) throw new Error("Registration failed");
+  setToken(data.access_token);
+  return data;
+}
+
 export function logout() {
   clearToken();
 }

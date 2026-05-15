@@ -4,6 +4,7 @@ from app.models.application import Application
 from app.models.application_stage import ApplicationStage
 from app.repositories.application_repo import ApplicationRepository
 from app.repositories.resume_repository import ResumeRepository
+from app.core.followup_config import OVERDUE_ELIGIBLE_STAGES, TERMINAL_STAGES
 
 ALLOWED_STAGES = {"CAPTURED", "APPLIED", "OA", "INTERVIEW", "OFFER", "REJECTED", "GHOSTED"}
 
@@ -11,16 +12,29 @@ class ApplicationService:
     def __init__(self):
         self.repo = ApplicationRepository()
 
+    def _normalize_date(self, value):
+        if value is None:
+            return None
+        if isinstance(value, date):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+        try:
+            return date.fromisoformat(str(value))
+        except Exception:
+            return None
+
     def create_application(
         self,
         session: Session,
         user_id: int,
         payload: dict,
     ) -> Application:
-        # Job URL duplicate na ho isliye check kar rahe hain
-        existing = self.repo.get_by_user_and_url(session, user_id, payload["job_url"])
-        if existing:
-            raise ValueError("Application already exists for this job URL")
+        job_url = payload.get("job_url")
+        if job_url:
+            existing = self.repo.get_by_user_and_url(session, user_id, job_url)
+            if existing:
+                raise ValueError("Application already exists for this job URL")
 
         # Default stage CAPTURED rakhenge (extension capture ke time)
         stage = payload.get("current_stage") or "CAPTURED"
@@ -40,18 +54,22 @@ class ApplicationService:
                 raise ValueError("resume_slot must be 1, 2, or 3")
 
         # Application object create
+        applied_date = self._normalize_date(payload.get("applied_at") or payload.get("date_applied"))
+        if applied_date is None:
+            applied_date = datetime.utcnow().date()
+
         app_obj = Application(
             user_id=user_id,
             company_name=payload["company_name"],
             role_title=payload["role_title"],
-            job_url=payload["job_url"],
+            job_url=job_url,
             platform=payload.get("platform"),
             location=payload.get("location"),
             job_type=payload.get("job_type"),
             company_type=payload.get("company_type"),
             role_category=payload.get("role_category"),
             resume_id=resume_id,
-            date_applied=payload.get("date_applied"),
+            date_applied=applied_date,
             current_stage=stage,
         )
 
@@ -64,6 +82,7 @@ class ApplicationService:
             timestamp=datetime.utcnow(),
         )
         self.repo.add_stage(session, stage_obj)
+        session.refresh(created)
 
         return created
 
@@ -91,12 +110,22 @@ class ApplicationService:
         created_stage = self.repo.add_stage(session, stage_obj)
 
         # Application ka current_stage update (latest snapshot)
+        stage_key = new_stage.upper()
+        if stage_key in TERMINAL_STAGES or stage_key not in OVERDUE_ELIGIBLE_STAGES:
+            app_obj.is_overdue = False
+            app_obj.overdue_at = None
+            app_obj.overdue_baseline_days = None
+            self.repo.resolve_pending_overdue_followups(
+                session=session,
+                application_id=app_obj.id,
+                resolved_at=datetime.utcnow(),
+            )
         self.repo.update_current_stage(session, app_obj, new_stage)
 
         return created_stage
 
-    def list_applications(self, session: Session, user_id: int) -> list[Application]:
-        return self.repo.list_for_user(session, user_id)
+    def list_applications(self, session: Session, user_id: int, sort: str = "recent") -> list[Application]:
+        return self.repo.list_for_user(session, user_id, sort=sort)
 
     def delete_application(self, session: Session, user_id: int, app_id: int) -> None:
         app_obj = self.repo.get_by_id(session, app_id)
@@ -143,6 +172,17 @@ class ApplicationService:
                 self.repo.add_stage(session, stage_obj)
                 app_obj.current_stage = new_stage
 
+            stage_key = new_stage.upper()
+            if stage_key in TERMINAL_STAGES or stage_key not in OVERDUE_ELIGIBLE_STAGES:
+                app_obj.is_overdue = False
+                app_obj.overdue_at = None
+                app_obj.overdue_baseline_days = None
+                self.repo.resolve_pending_overdue_followups(
+                    session=session,
+                    application_id=app_obj.id,
+                    resolved_at=datetime.utcnow(),
+                )
+
         # Simple field updates
         for field in [
             "company_name",
@@ -157,5 +197,8 @@ class ApplicationService:
         ]:
             if field in payload:
                 setattr(app_obj, field, payload[field])
+
+        if "applied_at" in payload:
+            app_obj.date_applied = self._normalize_date(payload.get("applied_at"))
 
         return self.repo.update_application(session, app_obj)

@@ -4,8 +4,23 @@
 
 const CONF_RANK = { low: 1, medium: 2, high: 3 };
 
-function shouldOverride(oldConf, newConf) {
-  return (CONF_RANK[newConf] || 0) > (CONF_RANK[oldConf] || 0);
+function shouldOverride(oldConf, newConf, oldSource = "", newSource = "") {
+  const oldRank = CONF_RANK[oldConf] || 0;
+  const newRank = CONF_RANK[newConf] || 0;
+
+  if (newRank > oldRank) return true;
+
+  // If confidence is equal, allow structured adapter/jsonld values to replace safe meta fallbacks.
+  if (
+    newRank === oldRank &&
+    newRank > 0 &&
+    typeof newSource === "string" &&
+    (newSource.startsWith("li:") || newSource.startsWith("adapter:") || newSource.startsWith("jsonld:"))
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function cleanText(s) {
@@ -28,6 +43,9 @@ function cleanRoleTitle(text) {
   let value = normalizeSpaces(text);
 
   value = value
+    .replace(/\s*\|\s*[^|]+\s*\|\s*LinkedIn\s*$/i, "")
+    .replace(/\s*\|\s*LinkedIn\s*$/i, "")
+    .replace(/\s*-\s*LinkedIn\s*$/i, "")
     .replace(/\s*-\s*Indeed\.com\s*$/i, "")
     .replace(/\s*-\s*Remote\s*-\s*Indeed\.com\s*$/i, "")
     .replace(/\s*-\s*Hybrid\s*-\s*Indeed\.com\s*$/i, "")
@@ -141,6 +159,28 @@ function extractLabeledValueExact(labelText) {
     }
   }
   return "";
+}
+
+function waitForLinkedInJobCard(timeoutMs = 1000) {
+  const end = Date.now() + timeoutMs;
+  const checkReady = () => {
+    return Boolean(
+      document.querySelector("h1") &&
+      (document.querySelector(".jobs-unified-top-card") ||
+       document.querySelector(".top-card-layout__title") ||
+       document.querySelector("[data-test-job-company-name]") ||
+       document.querySelector("a[href*='/company/']"))
+    );
+  };
+
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (checkReady()) return resolve(true);
+      if (Date.now() >= end) return resolve(false);
+      setTimeout(tick, 100);
+    };
+    tick();
+  });
 }
 
 function extractLabeledValue(labelRegex) {
@@ -334,74 +374,107 @@ function captureJsonLdJobPosting() {
 // =========================
 // Layer 3: Adapters
 // =========================
-function linkedInAdapter() {
-  const title = cleanText(document.querySelector("h1")?.innerText || "");
+async function linkedInAdapter() {
+  await waitForLinkedInJobCard(1000);
+
+  const title = firstNonEmpty(
+    document.querySelector('h1[class*="topcard__title"]')?.innerText,
+    document.querySelector('h1[class*="jobs-unified-top-card__job-title"]')?.innerText,
+    document.querySelector('h1')?.innerText
+  );
+
   const company = firstNonEmpty(
-    document.querySelector('a[data-control-name="company_link"]')?.innerText,
-    document.querySelector(".job-details-jobs-unified-top-card__company-name a")?.innerText,
-    document.querySelector(".job-details-jobs-unified-top-card__company-name")?.innerText
+    document.querySelector('a[data-test-company-name]')?.innerText,
+    document.querySelector('a[href*="/company/"]')?.innerText,
+    document.querySelector('.topcard__org-name-link')?.innerText,
+    document.querySelector('.jobs-unified-top-card__company-name a')?.innerText,
+    document.querySelector('.jobs-unified-top-card__company-name')?.innerText
   );
 
   const locLine = firstNonEmpty(
-    document.querySelector(".job-details-jobs-unified-top-card__bullet")?.innerText,
-    document.querySelector(".job-details-jobs-unified-top-card__primary-description-container")?.innerText
+    document.querySelector('.jobs-unified-top-card__bullet')?.innerText,
+    document.querySelector('.topcard__flavor--bullet')?.innerText,
+    document.querySelector('.topcard__flavor-row__metadata')?.innerText,
+    document.querySelector('[data-test-job-location]')?.innerText,
+    document.querySelector('.jobs-unified-top-card__subtitle')?.innerText
   );
 
   let location = "";
-  if (locLine) location = cleanText((locLine.split(/[|\u00B7]/)[0] || "").replace(/\(.*?\)/g, ""));
+  if (locLine) {
+    location = cleanText((locLine.split(/[\u00B7|•]/)[0] || "").replace(/\(.*?\)/g, ""));
+  }
 
-  const topCard = document.querySelector(".job-details-jobs-unified-top-card");
-  const chips = cleanText(Array.from(document.querySelectorAll(".job-details-jobs-unified-top-card__job-insight, .job-details-jobs-unified-top-card__job-insight-text")).map((n) => n.innerText).join(" | "));
-  const headerBlob = cleanText(topCard?.innerText || "");
-  const chipBlob = firstNonEmpty(chips, headerBlob).toLowerCase();
+  const topCard = document.querySelector('.jobs-unified-top-card') || document.querySelector('.top-card-layout__entity-info-container') || document.body;
+  const chipTexts = Array.from(topCard.querySelectorAll('span, li, div, a, button'))
+    .map((n) => cleanText(n.innerText || ""))
+    .filter(Boolean)
+    .filter((t) => t.length <= 30);
+
+  const chips = Array.from(new Set(chipTexts));
+  const chipBlob = chips.join(" | ").toLowerCase();
 
   let job_type = "";
   if (chipBlob.includes("intern")) job_type = "Internship";
-  else if (chipBlob.includes("full-time")) job_type = "Full-time";
-  else if (chipBlob.includes("part-time")) job_type = "Part-time";
+  else if (chipBlob.includes("full-time") || chipBlob.includes("full time")) job_type = "Full-time";
+  else if (chipBlob.includes("part-time") || chipBlob.includes("part time")) job_type = "Part-time";
   else if (chipBlob.includes("contract")) job_type = "Contract";
   else if (title.toLowerCase().includes("intern")) job_type = "Internship";
 
   const explicitWorkModeText = firstNonEmpty(
-    document.querySelector(".jobs-unified-top-card__workplace-type")?.innerText,
-    document.querySelector(".job-details-jobs-unified-top-card__workplace-type")?.innerText,
+    document.querySelector('.jobs-unified-top-card__workplace-type')?.innerText,
+    document.querySelector('.topcard__workplace-type')?.innerText,
     document.querySelector('[class*="workplace-type"]')?.innerText
   );
 
-  // LinkedIn often shows "(On-site/Remote/Hybrid)" only in active left-list card.
   const activeCardBlob = firstNonEmpty(
-    document.querySelector(".jobs-search-results-list__list-item--active")?.innerText,
-    document.querySelector(".jobs-search-results__list-item--active")?.innerText,
-    document.querySelector(".job-card-list--is-active")?.innerText
+    document.querySelector('.jobs-search-results-list__list-item--active')?.innerText,
+    document.querySelector('.jobs-search-results__list-item--active')?.innerText,
+    document.querySelector('.job-card-list--is-active')?.innerText
   );
 
   let work_mode = "";
-  const workBlob = firstNonEmpty(explicitWorkModeText, chipBlob, locLine, headerBlob, activeCardBlob).toLowerCase();
+  const workBlob = firstNonEmpty(explicitWorkModeText, chipBlob, locLine, activeCardBlob).toLowerCase();
   if (workBlob.includes("hybrid")) work_mode = "Hybrid";
   else if (workBlob.includes("on-site") || workBlob.includes("onsite")) work_mode = "On-site";
-  else if (workBlob.includes("remote")) work_mode = "Remote";
-  else if (locLine.toLowerCase().includes("(hybrid)")) work_mode = "Hybrid";
-  else if (locLine.toLowerCase().includes("(on-site)")) work_mode = "On-site";
-  else if (locLine.toLowerCase().includes("(remote)")) work_mode = "Remote";
+  else if (workBlob.includes("remote") || workBlob.includes("work from home")) work_mode = "Remote";
 
-  if (work_mode === "Remote" && (chipBlob.includes("on-site") || chipBlob.includes("onsite"))) work_mode = "Hybrid";
+  if (!work_mode && locLine) {
+    const lowerLoc = locLine.toLowerCase();
+    if (lowerLoc.includes("(hybrid)") || lowerLoc.includes("hybrid")) work_mode = "Hybrid";
+    else if (lowerLoc.includes("(on-site)") || lowerLoc.includes("onsite")) work_mode = "On-site";
+    else if (lowerLoc.includes("(remote)") || lowerLoc.includes("remote")) work_mode = "Remote";
+  }
+
+  if (work_mode === "Remote" && chipBlob.includes("on-site")) work_mode = "Hybrid";
   if (work_mode === "On-site" && chipBlob.includes("remote")) work_mode = "Hybrid";
 
+  const normalizedTitle = guardStructuredField(cleanRoleTitle(title), 150);
+  const normalizedCompany = cleanCompanyName(company);
+  const normalizedLocation = guardStructuredField(cleanLocation(location), 80);
+  const normalizedJobType = normalizeJobType(job_type);
+  const normalizedWorkMode = normalizeWorkMode(work_mode);
+
   return {
-    data: { role_title: title, company_name: company, location, job_type, work_mode },
+    data: {
+      role_title: normalizedTitle,
+      company_name: normalizedCompany,
+      location: normalizedLocation,
+      job_type: normalizedJobType,
+      work_mode: normalizedWorkMode
+    },
     confidence: {
-      role_title: title ? "high" : "low",
-      company_name: company ? "high" : "low",
-      location: location ? "high" : "low",
-      job_type: job_type ? (chips ? "high" : "medium") : "low",
-      work_mode: work_mode ? (chips ? "high" : "medium") : "low"
+      role_title: normalizedTitle ? "high" : "low",
+      company_name: normalizedCompany ? "high" : "low",
+      location: normalizedLocation ? "high" : "low",
+      job_type: normalizedJobType ? "high" : "low",
+      work_mode: normalizedWorkMode ? "high" : "low"
     },
     sources: {
       role_title: "li:dom:h1",
       company_name: "li:dom:company",
-      location: "li:dom:topcard_split_dot",
-      job_type: chips ? "li:dom:chips" : "li:dom:header_fallback",
-      work_mode: chips ? "li:dom:chips" : "li:dom:header_fallback"
+      location: "li:dom:topcard_location",
+      job_type: normalizedJobType ? "li:dom:chips" : "li:dom:title_fallback",
+      work_mode: normalizedWorkMode ? "li:dom:chips" : "li:dom:workmode_fallback"
     }
   };
 }
@@ -759,12 +832,14 @@ function merge(base, patch) {
     const oldVal = cleanText(out.data?.[key] || "");
     const oldConf = out.confidence?.[key] || "low";
     const newConf = patch.confidence?.[key] || "low";
+    const oldSource = out.sources?.[key] || "";
+    const newSource = patch.sources?.[key] || "";
 
-    const allow = !oldVal || shouldOverride(oldConf, newConf);
+    const allow = !oldVal || shouldOverride(oldConf, newConf, oldSource, newSource);
     if (allow) {
       out.data[key] = newVal;
       out.confidence[key] = newConf;
-      out.sources[key] = patch.sources?.[key] || "unknown";
+      out.sources[key] = newSource || "unknown";
     }
   }
 
@@ -786,10 +861,10 @@ function merge(base, patch) {
 // =========================
 // Main capture pipeline
 // =========================
-function captureAll() {
+async function captureAll() {
   const safe = captureSafeMeta();
   const jsonld = captureJsonLdJobPosting();
-  const adapter = runAdapters(location.hostname);
+  const adapter = await runAdapters(location.hostname);
 
   let merged = safe;
   if (jsonld) merged = merge(merged, jsonld);
@@ -814,15 +889,18 @@ function captureAll() {
 // =========================
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === "CAPTURE") {
-    try {
-      const result = captureAll();
-      sendResponse({
-        ok: true,
-        data: result.data,
-        debug: { confidence: result.confidence, sources: result.sources }
-      });
-    } catch (e) {
-      sendResponse({ ok: false, error: String(e) });
-    }
+    (async () => {
+      try {
+        const result = await captureAll();
+        sendResponse({
+          ok: true,
+          data: result.data,
+          debug: { confidence: result.confidence, sources: result.sources }
+        });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e) });
+      }
+    })();
+    return true;
   }
 });

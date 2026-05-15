@@ -1,10 +1,15 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+if (!BASE_URL) {
+  throw new Error("VITE_API_BASE_URL is required");
+}
+
 export function getToken() {
   return localStorage.getItem("access_token");
 }
 export function setToken(token) {
-  localStorage.setItem("access_token", token);
+  const clean = (token || "").replace(/\s+/g, "").trim();
+  localStorage.setItem("access_token", clean);
 }
 export function clearToken() {
   localStorage.removeItem("access_token");

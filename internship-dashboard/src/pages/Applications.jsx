@@ -7,9 +7,16 @@ import { listApplications, createApplication, addStage, deleteApplication, updat
 import { safeText } from "../utils/uiHelpers";
 import useResumeSlotCount from "../hooks/useResumeSlotCount";
 
+function getDaysAgo(date) {
+  if (!date) return 0;
+  const diff = new Date() - new Date(date);
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
 export default function Applications() {
   const [apps, setApps] = useState([]);
   const [q, setQ] = useState("");
+  const [sortKey, setSortKey] = useState("recent");
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
@@ -34,6 +41,7 @@ export default function Applications() {
   const [role, setRole] = useState("");
   const [platform, setPlatform] = useState("");
   const [jobUrl, setJobUrl] = useState("");
+  const [appliedAt, setAppliedAt] = useState("");
   const [resumeVersion, setResumeVersion] = useState("1");
 
 
@@ -41,11 +49,11 @@ export default function Applications() {
     setErr("");
     setLoading(true);
     try {
-      const [appsData] = await Promise.all([listApplications()]);
+      const appsData = await listApplications(sortKey);
       const nextApps = Array.isArray(appsData) ? appsData : [];
       setApps(nextApps);
     } catch (e) {
-      setErr(e.message);
+      setErr(e.message || "Unable to load applications.");
     } finally {
       setLoading(false);
     }
@@ -53,7 +61,7 @@ export default function Applications() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [sortKey]);
 
   useEffect(() => {
     const selected = Number(resumeVersion);
@@ -84,6 +92,26 @@ export default function Applications() {
       return hay.includes(t);
     });
   }, [apps, q]);
+  const needsAttention = useMemo(
+    () => filtered.filter((app) => app.is_overdue),
+    [filtered]
+  );
+  const inProgress = useMemo(
+    () =>
+      filtered.filter(
+        (app) =>
+          !app.is_overdue &&
+          !["REJECTED", "OFFER"].includes(app.current_stage || "CAPTURED")
+      ),
+    [filtered]
+  );
+  const completed = useMemo(
+    () =>
+      filtered.filter((app) =>
+        ["REJECTED", "OFFER"].includes(app.current_stage || "CAPTURED")
+      ),
+    [filtered]
+  );
 
   async function onCreate() {
     setErr("");
@@ -92,35 +120,31 @@ export default function Applications() {
       setErr("Company and Role are required.");
       return;
     }
-    if (!jobUrl.trim()) {
-      setErr("Job URL is required (backend rule). Paste the job link.");
-      return;
-    }
     try {
       const payload = {
         company_name: company.trim(),
         role_title: role.trim(),
         platform: platform.trim() || "UNKNOWN",
-        job_url: jobUrl.trim(),
         current_stage: "CAPTURED",
         resume_slot: Number(resumeVersion), // 1 / 2 / 3
       };
+      if (jobUrl.trim()) payload.job_url = jobUrl.trim();
+      if (appliedAt) payload.applied_at = appliedAt;
 
       await createApplication(payload);
 
-      setMsg("Application created ✅");
-      setOpen(false);
-
-      // reset
       setCompany("");
       setRole("");
       setPlatform("");
       setJobUrl("");
+      setAppliedAt("");
       setResumeVersion("1");
 
+      setOpen(false);
+      setMsg("Application created.");
       await load();
     } catch (e) {
-      setErr(e.message);
+      setErr(e.message || "Could not create application.");
     }
   }
 
@@ -131,10 +155,10 @@ export default function Applications() {
       const selectedStage = stageSelections[appId];
       if (!selectedStage) return;
       await addStage(appId, { stage: selectedStage });
-      setMsg(`Stage added ✅ ${selectedStage}`);
+      setMsg(`Stage added: ${selectedStage}`);
       await load();
     } catch (e) {
-      setErr(e.message);
+      setErr(e.message || "Could not add the selected stage.");
     }
   }
 
@@ -151,7 +175,7 @@ export default function Applications() {
         return next;
       });
     } catch (err) {
-      alert("Could not delete application");
+      setErr(err?.message || "Could not delete application.");
     }
   }
 
@@ -162,6 +186,7 @@ export default function Applications() {
       role_title: app.role_title || "",
       platform: app.platform || "",
       job_url: app.job_url || "",
+      location: extractWorkMode(app) === "-" ? "" : extractWorkMode(app),
       resume_slot: app.resume_slot ?? "",
       current_stage: app.current_stage || "CAPTURED",
     });
@@ -181,7 +206,8 @@ export default function Applications() {
       if (editForm.company_name !== "") payload.company_name = editForm.company_name;
       if (editForm.role_title !== "") payload.role_title = editForm.role_title;
       if (editForm.platform !== "") payload.platform = editForm.platform;
-      if (editForm.job_url !== "") payload.job_url = editForm.job_url;
+      payload.job_url = editForm.job_url || null;
+      payload.location = editForm.location || null;
 
       if (editForm.resume_slot !== "" && editForm.resume_slot !== null) {
         payload.resume_slot = Number(editForm.resume_slot);
@@ -195,8 +221,249 @@ export default function Applications() {
       }));
       cancelEdit();
     } catch (err) {
-      alert(err?.message || "Could not update application");
+      setErr(err?.message || "Could not update application.");
     }
+  }
+
+  function renderCard(a) {
+    const daysAgo = getDaysAgo(a.date_applied);
+    const stage = a.stage || a.current_stage;
+    const isRecent = daysAgo <= 3;
+    const isWaiting =
+      daysAgo > 7 &&
+      !a.is_overdue &&
+      !["REJECTED", "OFFER"].includes(stage);
+    const isInterview = stage === "INTERVIEW";
+    const isStale = isWaiting;
+
+    return (
+      <div
+        key={a.id}
+        className={`rounded-2xl border bg-white p-6 shadow-sm transition hover:shadow-md transition-colors dark:border-gray-800 dark:bg-gray-900/60 ${
+          a.is_overdue ? "border-red-500 bg-red-50" : "border-gray-200"
+        }`}
+      >
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          {editingId === a.id ? (
+            <div className="w-full space-y-4">
+              <input
+                type="text"
+                value={editForm.company_name || ""}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, company_name: e.target.value }))
+                }
+                placeholder="Company name"
+                className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              />
+
+              <input
+                type="text"
+                value={editForm.role_title || ""}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, role_title: e.target.value }))
+                }
+                placeholder="Role title"
+                className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              />
+
+              <input
+                type="text"
+                value={editForm.platform || ""}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, platform: e.target.value }))
+                }
+                placeholder="Platform"
+                className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              />
+
+              <input
+                type="text"
+                value={editForm.job_url || ""}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, job_url: e.target.value }))
+                }
+                placeholder="Job URL"
+                className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              />
+
+              <select
+                value={editForm.location || ""}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, location: e.target.value }))
+                }
+                className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              >
+                <option value="">Select Work Mode</option>
+                <option value="Remote">Remote</option>
+                <option value="Hybrid">Hybrid</option>
+                <option value="On-site">On-site</option>
+              </select>
+
+              <select
+                value={editForm.resume_slot ?? ""}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, resume_slot: e.target.value }))
+                }
+                className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              >
+                <option value="">Select Resume Slot</option>
+                {slotOptions.map((slot) => (
+                  <option key={slot} value={String(slot)}>
+                    Resume Slot {slot}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={editForm.current_stage || "CAPTURED"}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, current_stage: e.target.value }))
+                }
+                className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              >
+                <option value="CAPTURED">CAPTURED</option>
+                <option value="APPLIED">APPLIED</option>
+                <option value="OA">OA</option>
+                <option value="INTERVIEW">INTERVIEW</option>
+                <option value="OFFER">OFFER</option>
+                <option value="REJECTED">REJECTED</option>
+                <option value="GHOSTED">GHOSTED</option>
+              </select>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleSaveEdit(a.id)}
+                  className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-900 dark:bg-blue-600 dark:hover:bg-blue-500"
+                >
+                  Save
+                </button>
+
+                <button
+                  onClick={cancelEdit}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <h3 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  {safeText(a.company_name)} - {cleanRoleTitleUI(a.role_title)}
+                </h3>
+
+                <div className="flex gap-2 flex-wrap mt-1">
+                  {a.is_overdue && (
+                    <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-700">
+                      OVERDUE
+                    </span>
+                  )}
+
+                  {isWaiting && (
+                    <span className="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-700">
+                      WAITING
+                    </span>
+                  )}
+
+                  {isRecent && (
+                    <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700">
+                      RECENT
+                    </span>
+                  )}
+
+                  {isInterview && (
+                    <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700">
+                      INTERVIEW
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="font-medium text-gray-700 dark:text-gray-100">Platform:</span>{" "}
+                  {safeText(labelPlatform(a.platform))}
+                  <span className="mx-2 text-gray-300">|</span>
+                  <span className="font-medium text-gray-700 dark:text-gray-100">Work Mode:</span>{" "}
+                  {safeText(extractWorkMode(a))}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="font-medium text-gray-700 dark:text-gray-100">Date Applied:</span>{" "}
+                  {formatDateShort(a.date_applied || a.created_at)}
+                </p>
+                {isStale && (
+                  <p className="text-sm text-yellow-600 mt-1">
+                    No update for {daysAgo} days
+                  </p>
+                )}
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Applied {getDaysAgo(a.date_applied || a.created_at)} days ago - no response yet
+                </p>
+                <span className="text-xs text-gray-400">
+                  Resume Slot: {a.resume_slot ?? "Not set"}
+                </span>
+
+                {a.job_url ? (
+                  <a
+                    href={a.job_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center text-sm font-medium text-gray-700 hover:underline dark:text-blue-300"
+                  >
+                    Open Application
+                  </a>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 mr-2">
+                  <button
+                    onClick={() => startEdit(a)}
+                    className="inline-flex h-9 min-w-14 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-[0] text-gray-600 transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-blue-950/40 dark:hover:text-white"
+                    title="Edit application"
+                    aria-label="Edit application"
+                  >
+                    <span className="text-xs font-medium">Edit</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteApplication(a.id)}
+                    className="inline-flex h-9 min-w-20 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-[0] text-gray-600 transition hover:bg-red-50 hover:text-red-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-red-950 dark:hover:text-red-300"
+                    title="Remove application"
+                    aria-label="Remove application"
+                  >
+                    <span className="text-xs font-medium">Remove</span>
+                  </button>
+                </div>
+                <select
+                  value={stageSelections[a.id] ?? a.current_stage ?? "CAPTURED"}
+                  onChange={(e) =>
+                    setStageSelections((prev) => ({
+                      ...prev,
+                      [a.id]: e.target.value,
+                    }))
+                  }
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                >
+                  <option value="CAPTURED">CAPTURED</option>
+                  <option value="APPLIED">APPLIED</option>
+                  <option value="OA">OA</option>
+                  <option value="INTERVIEW">INTERVIEW</option>
+                  <option value="OFFER">OFFER</option>
+                  <option value="REJECTED">REJECTED</option>
+                  <option value="GHOSTED">GHOSTED</option>
+                </select>
+
+                <button
+                  onClick={() => handleAddStage(a.id)}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-blue-950/40"
+                >
+                  Add Stage
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -205,13 +472,10 @@ export default function Applications() {
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
           <div>
-            <div className="text-2xl font-semibold text-gray-800 dark:text-wine-50">Applications</div>
-            <div className="text-sm text-gray-500 dark:text-wine-200/80 mt-1">
-              Add manually (for A/B resume analytics) + view captured apps.
-            </div>
+            <div className="text-2xl font-semibold text-gray-800 dark:text-white">Applications</div>
           </div>
           <button
-            className="px-4 py-2 rounded-xl bg-black text-white hover:opacity-90 dark:bg-wine-600 dark:hover:bg-wine-500"
+            className="rounded-xl bg-black px-4 py-2 text-white transition hover:bg-gray-900 dark:bg-blue-600 dark:hover:bg-blue-500"
             onClick={() => setOpen(true)}
           >
             + Add Application
@@ -225,28 +489,52 @@ export default function Applications() {
           ) : null}
         </div>
 
-        <div className="mt-4">
-          <input
-            className="w-full md:w-96 border rounded-xl px-3 py-2 bg-white text-gray-800 dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
-            placeholder="Search company / role / platform"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+        <div className="grid gap-3 sm:grid-cols-[1.5fr_1fr]">
+          <div className="relative w-full">
+            <input
+              className="w-full rounded-xl border bg-white px-3 py-2 pr-10 text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              placeholder="Search company / role / platform"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Sort</label>
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            >
+              <option value="recent">Newest first</option>
+              <option value="old">Oldest first</option>
+            </select>
+          </div>
+          {q ? (
+            <button
+              type="button"
+              onClick={() => setQ("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+              aria-label="Clear search"
+            >
+              x
+            </button>
+          ) : null}
         </div>
 
-        <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-wine-800 dark:bg-[#1a1116]">
+        <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900/60">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="text-base font-semibold text-gray-800 dark:text-wine-50">
+              <div className="text-base font-semibold text-gray-800 dark:text-white">
                 Resume Slot Settings
               </div>
-              <div className="mt-1 text-sm text-gray-500 dark:text-wine-200/80">
+              <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Choose how many resume slots you want to maintain for A/B testing and tracking.
               </div>
             </div>
 
             <div className="w-full md:w-64">
-              <label className="text-sm text-gray-700 dark:text-wine-100">
+              <label className="text-sm text-gray-700 dark:text-gray-100">
                 Number of Resume Slots
               </label>
               <input
@@ -282,7 +570,7 @@ export default function Applications() {
                   setResumeSlotCount(num);
                   setResumeInput(String(num));
                 }}
-                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
               />
             </div>
           </div>
@@ -299,8 +587,35 @@ export default function Applications() {
 
         {!loading && apps.length > 0 ? (
           <div className="mt-6 grid gap-3">
-            {filtered.map((a) => (
-              <div key={a.id} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md transition-colors dark:border-wine-800 dark:bg-[#1a1116]">
+            <h2 className="text-lg font-semibold mt-4 mb-2">Needs Attention</h2>
+            <p className="text-xs text-gray-400 mb-2">
+              {sortKey === "old" ? "Sorted by oldest applications" : "Sorted by newest applications"}
+            </p>
+            {needsAttention.length === 0 ? (
+              <p className="text-sm text-gray-400">No applications here</p>
+            ) : null}
+            {needsAttention.map((a) => renderCard(a))}
+
+            <h2 className="text-lg font-semibold mt-6 mb-2">In Progress</h2>
+            <p className="text-xs text-gray-400 mb-2">
+              {sortKey === "old" ? "Sorted by oldest applications" : "Sorted by newest applications"}
+            </p>
+            {inProgress.length === 0 ? (
+              <p className="text-sm text-gray-400">No applications here</p>
+            ) : null}
+            {inProgress.map((a) => renderCard(a))}
+
+            <h2 className="text-lg font-semibold mt-6 mb-2">Completed</h2>
+            <p className="text-xs text-gray-400 mb-2">
+              {sortKey === "old" ? "Sorted by oldest applications" : "Sorted by newest applications"}
+            </p>
+            {completed.length === 0 ? (
+              <p className="text-sm text-gray-400">No applications here</p>
+            ) : null}
+            {completed.map((a) => renderCard(a))}
+
+            {false && filtered.map((a) => (
+              <div key={a.id} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md transition-colors dark:border-gray-800 dark:bg-gray-900/60">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   {editingId === a.id ? (
                     <div className="w-full space-y-4">
@@ -311,7 +626,7 @@ export default function Applications() {
                           setEditForm((prev) => ({ ...prev, company_name: e.target.value }))
                         }
                         placeholder="Company name"
-                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                       />
 
                       <input
@@ -321,7 +636,7 @@ export default function Applications() {
                           setEditForm((prev) => ({ ...prev, role_title: e.target.value }))
                         }
                         placeholder="Role title"
-                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                       />
 
                       <input
@@ -331,7 +646,7 @@ export default function Applications() {
                           setEditForm((prev) => ({ ...prev, platform: e.target.value }))
                         }
                         placeholder="Platform"
-                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                       />
 
                       <input
@@ -341,7 +656,7 @@ export default function Applications() {
                           setEditForm((prev) => ({ ...prev, job_url: e.target.value }))
                         }
                         placeholder="Job URL"
-                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                       />
 
                       <select
@@ -349,7 +664,7 @@ export default function Applications() {
                         onChange={(e) =>
                           setEditForm((prev) => ({ ...prev, resume_slot: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                       >
                         <option value="">Select Resume Slot</option>
                         {slotOptions.map((slot) => (
@@ -364,7 +679,7 @@ export default function Applications() {
                         onChange={(e) =>
                           setEditForm((prev) => ({ ...prev, current_stage: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                       >
                         <option value="CAPTURED">CAPTURED</option>
                         <option value="APPLIED">APPLIED</option>
@@ -378,14 +693,14 @@ export default function Applications() {
                       <div className="flex gap-3">
                         <button
                           onClick={() => handleSaveEdit(a.id)}
-                          className="rounded-xl bg-wine-600 px-4 py-2 text-sm font-medium text-white hover:bg-wine-700"
+                          className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-900 dark:bg-blue-600 dark:hover:bg-blue-500"
                         >
                           Save
                         </button>
 
                         <button
                           onClick={cancelEdit}
-                          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+                          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                         >
                           Cancel
                         </button>
@@ -394,24 +709,32 @@ export default function Applications() {
                   ) : (
                     <>
                       <div className="space-y-2">
-                        <h3 className="text-xl font-semibold text-gray-800 dark:text-wine-50">
+                        <h3 className="text-xl font-semibold text-gray-800 dark:text-white">
                           {safeText(a.company_name)} - {cleanRoleTitleUI(a.role_title)}
                         </h3>
 
-                        <p className="text-sm text-gray-600 dark:text-wine-200/80">
-                          <span className="font-medium text-gray-700 dark:text-wine-100">Platform:</span>{" "}
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          <span className="font-medium text-gray-700 dark:text-gray-100">Platform:</span>{" "}
                           {safeText(labelPlatform(a.platform))}
                           <span className="mx-2">•</span>
-                          <span className="font-medium text-gray-700 dark:text-wine-100">Current Stage:</span>{" "}
+                          <span className="font-medium text-gray-700 dark:text-gray-100">Current Stage:</span>{" "}
                           {a.current_stage || "CAPTURED"}
                           <span className="mx-2">•</span>
-                          <span className="font-medium text-gray-700 dark:text-wine-100">Work Mode:</span>{" "}
+                          <span className="font-medium text-gray-700 dark:text-gray-100">Work Mode:</span>{" "}
                           {safeText(extractWorkMode(a))}
                         </p>
+                        {a.is_overdue ? (
+                          <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+                            Overdue
+                          </span>
+                        ) : null}
 
-                        <p className="text-sm text-gray-600 dark:text-wine-200/80">
-                          <span className="font-medium text-gray-700 dark:text-wine-100">Resume Slot:</span>{" "}
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          <span className="font-medium text-gray-700 dark:text-gray-100">Resume Slot:</span>{" "}
                       {a.resume_slot ? `Resume ${a.resume_slot}` : "—"}
+                          <span className="mx-2">•</span>
+                          <span className="font-medium text-gray-700 dark:text-gray-100">Date Applied:</span>{" "}
+                          {formatDateShort(a.date_applied || a.created_at)}
                         </p>
 
                         {a.job_url ? (
@@ -419,7 +742,7 @@ export default function Applications() {
                             href={a.job_url}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center text-sm font-medium text-blue-600 hover:underline dark:text-wine-300"
+                            className="inline-flex items-center text-sm font-medium text-gray-700 hover:underline dark:text-blue-300"
                           >
                             Open Application
                           </a>
@@ -430,14 +753,14 @@ export default function Applications() {
                         <div className="flex items-center gap-2 mr-2">
                           <button
                             onClick={() => startEdit(a)}
-                            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-sm text-gray-500 transition hover:bg-gray-50 hover:text-gray-700 dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-200 dark:hover:bg-[#311621] dark:hover:text-wine-50"
+                            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-sm text-gray-500 transition hover:bg-gray-50 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-blue-950/40 dark:hover:text-white"
                             title="Edit application"
                           >
                             ✎
                           </button>
                           <button
                             onClick={() => handleDeleteApplication(a.id)}
-                            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-base text-gray-500 transition hover:bg-red-50 hover:text-red-600 dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-200 dark:hover:bg-red-950 dark:hover:text-red-300"
+                            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-base text-gray-500 transition hover:bg-red-50 hover:text-red-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-red-950 dark:hover:text-red-300"
                             title="Remove application"
                           >
                             ×
@@ -451,7 +774,7 @@ export default function Applications() {
                               [a.id]: e.target.value,
                             }))
                           }
-                          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm text-gray-800 dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+                          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                         >
                           <option value="CAPTURED">CAPTURED</option>
                           <option value="APPLIED">APPLIED</option>
@@ -464,7 +787,7 @@ export default function Applications() {
 
                         <button
                           onClick={() => handleAddStage(a.id)}
-                          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100 dark:hover:bg-[#311621]"
+                          className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-blue-950/40"
                         >
                           Add Stage
                         </button>
@@ -475,7 +798,9 @@ export default function Applications() {
               </div>
             ))}
 
-            {filtered.length === 0 ? <div className="text-sm text-gray-500">No applications found.</div> : null}
+            {false && (filtered.length === 0 ? (
+              <div className="text-sm text-gray-500">No applications found.</div>
+            ) : null)}
           </div>
         ) : null}
       </div>
@@ -483,16 +808,13 @@ export default function Applications() {
       {/* Modal */}
       {open ? (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-lg dark:bg-[#1a1116] dark:border dark:border-wine-800">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-lg dark:bg-gray-900/60 dark:border dark:border-gray-800">
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-lg font-semibold text-gray-800 dark:text-wine-50">Add Application</div>
-                <div className="text-sm text-gray-500 dark:text-wine-200/80 mt-1">
-                  Resume A/B/C assign karne ke liye resume_slot set hota hai (1/2/3).
-                </div>
+                <div className="text-lg font-semibold text-gray-800 dark:text-white">Add Application</div>
               </div>
               <button
-                className="text-sm px-3 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-wine-700 dark:text-wine-100 dark:hover:bg-[#24131b]"
+                className="text-sm px-3 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900"
                 onClick={() => setOpen(false)}
               >
                 Close
@@ -503,12 +825,24 @@ export default function Applications() {
               <Field label="Company *" value={company} onChange={setCompany} placeholder="e.g., Google" />
               <Field label="Role *" value={role} onChange={setRole} placeholder="e.g., Frontend Intern" />
               <Field label="Platform" value={platform} onChange={setPlatform} placeholder="e.g., linkedin.com" />
-              <Field label="Job URL" value={jobUrl} onChange={setJobUrl} placeholder="https://..." />
+              <Field label="Job URL (optional)" value={jobUrl} onChange={setJobUrl} placeholder="https://..." />
 
               <div>
-                <div className="text-sm text-gray-700 dark:text-wine-100">Resume Slot</div>
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-100">
+                  Applied Date
+                </label>
+                <input
+                  type="date"
+                  value={appliedAt}
+                  onChange={(e) => setAppliedAt(e.target.value)}
+                  className="w-full border rounded-xl px-3 py-2 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                />
+              </div>
+
+              <div>
+                <div className="text-sm text-gray-700 dark:text-gray-100">Resume Slot</div>
                 <select
-                  className="mt-1 w-full border rounded-xl px-3 py-2 bg-white text-gray-800 dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+                  className="mt-1 w-full border rounded-xl px-3 py-2 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                   value={resumeVersion}
                   onChange={(e) => setResumeVersion(e.target.value)}
                 >
@@ -521,7 +855,7 @@ export default function Applications() {
               </div>
 
               <button
-                className="mt-2 w-full rounded-xl bg-black text-white py-2 hover:opacity-90 dark:bg-wine-600 dark:hover:bg-wine-500"
+                className="mt-2 w-full rounded-xl bg-black py-2 text-white transition hover:bg-gray-900 dark:bg-blue-600 dark:hover:bg-blue-500"
                 onClick={onCreate}
               >
                 Create
@@ -537,9 +871,9 @@ export default function Applications() {
 function Field({ label, value, onChange, placeholder }) {
   return (
     <div>
-      <div className="text-sm text-gray-700 dark:text-wine-100">{label}</div>
+      <div className="text-sm text-gray-700 dark:text-gray-100">{label}</div>
       <input
-        className="mt-1 w-full border rounded-xl px-3 py-2 bg-white text-gray-800 dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+        className="mt-1 w-full border rounded-xl px-3 py-2 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -578,4 +912,17 @@ function extractWorkMode(app) {
   if (t.includes("hybrid")) return "Hybrid";
   if (t.includes("on-site") || t.includes("onsite") || t.includes("on site")) return "On-site";
   return "—";
+}
+
+function formatDateShort(value) {
+  if (!value) return "—";
+  const raw = String(value);
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+
+  return parsed.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
 }

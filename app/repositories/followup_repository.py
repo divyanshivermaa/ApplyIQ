@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 
 from app.models.application import Application
 from app.models.followup_suggestion import FollowUpSuggestion
+from app.models.status_suggestion import StatusSuggestion
 
 
 class FollowUpRepository:
@@ -21,6 +22,74 @@ class FollowUpRepository:
             .where(FollowUpSuggestion.status == "PENDING")
         )
         return session.exec(stmt).first() is not None
+
+    def get_pending_overdue_suggestions(self, session: Session, application_id: int) -> list[FollowUpSuggestion]:
+        stmt = (
+            select(FollowUpSuggestion)
+            .where(FollowUpSuggestion.application_id == application_id)
+            .where(FollowUpSuggestion.kind == "OVERDUE")
+            .where(FollowUpSuggestion.status == "PENDING")
+        )
+        return list(session.exec(stmt).all())
+
+    def pending_overdue_status_suggestion_exists(
+        self,
+        session: Session,
+        application_id: int,
+        source_type: str = "OVERDUE",
+    ) -> bool:
+        stmt = (
+            select(StatusSuggestion)
+            .where(StatusSuggestion.application_id == application_id)
+            .where(StatusSuggestion.source_type == source_type)
+            .where(StatusSuggestion.status == "PENDING")
+        )
+        return session.exec(stmt).first() is not None
+
+    def create_overdue_status_suggestion(
+        self,
+        session: Session,
+        user_id: int,
+        application_id: int,
+        suggested_stage: str,
+        explanation: str,
+        confidence: int = 70,
+        source_type: str = "OVERDUE",
+    ) -> StatusSuggestion:
+        suggestion = StatusSuggestion(
+            user_id=user_id,
+            application_id=application_id,
+            suggested_stage=suggested_stage,
+            confidence=confidence,
+            explanation=explanation,
+            source_type=source_type,
+            status="PENDING",
+        )
+        session.add(suggestion)
+        return suggestion
+
+    def resolve_pending_overdue_status_suggestions(
+        self,
+        session: Session,
+        application_id: int,
+        resolved_status: str = "DISMISSED",
+        resolved_at: Optional[datetime] = None,
+    ) -> int:
+        if resolved_at is None:
+            resolved_at = datetime.utcnow()
+
+        stmt = (
+            select(StatusSuggestion)
+            .where(StatusSuggestion.application_id == application_id)
+            .where(StatusSuggestion.source_type == "OVERDUE")
+            .where(StatusSuggestion.status == "PENDING")
+        )
+        rows = session.exec(stmt).all()
+        for row in rows:
+            row.status = resolved_status
+            row.reviewed_at = resolved_at
+            session.add(row)
+        return len(rows)
 
     def mark_application_overdue(
         self,

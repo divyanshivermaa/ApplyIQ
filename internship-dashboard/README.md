@@ -1,18 +1,34 @@
-# React + Vite
+﻿# ApplyIQ Frontend (Internship Intelligence System)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the React + Vite dashboard for ApplyIQ. It provides application tracking, analytics, and manual management features, along with status suggestions and dark mode UI.
 
-Currently, two official plugins are available:
+## Features
+- Application list with stage management
+- Analytics dashboards (funnel, trends, platform performance)
+- Suggestions review and confirmation
+- Manual apply notes and reminders
+- Dark mode theme
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech stack
+- React
+- Vite
+- Tailwind CSS
+- Recharts
 
-## React Compiler
+## Setup
+```bash
+npm install
+npm run dev
+```
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## Environment
+The frontend expects the backend running locally. If your API base URL is configurable, update it in the API client file.
 
-Note: This will impact Vite dev & build performances.
+## Project structure
+- `src/pages/` main screens
+- `src/components/` shared components
+- `src/api/` API wrappers
+- `src/utils/` UI helpers
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Notes
+If you update backend endpoints, ensure the API client paths match.

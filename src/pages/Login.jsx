@@ -1,4 +1,5 @@
 ﻿import { useState } from "react";
+import { Link } from "react-router-dom";
 import { login } from "../api/auth";
 
 export default function Login() {
@@ -15,8 +16,8 @@ export default function Login() {
 
     try {
       await login(email, password);
-      setMsg("Login success. Open Suggestions page now.");
-      window.location.href = "/suggestions";
+      setMsg("Login success. Opening dashboard...");
+      window.location.href = "/dashboard";
     } catch (err) {
       setMsg(`Login failed: ${err.message}`);
     } finally {
@@ -86,6 +87,9 @@ export default function Login() {
       {msg && <p style={{ marginTop: 12 }}>{msg}</p>}
       <p style={{ opacity: 0.7, marginTop: 18 }}>
         Note: This uses Bearer token auth. Token is stored in localStorage.
+      </p>
+      <p style={{ marginTop: 14 }}>
+        Don&apos;t have an account? <Link to="/signup" style={{ color: "#2563eb", textDecoration: "underline" }}>Create one</Link>.
       </p>
     </div>
   );

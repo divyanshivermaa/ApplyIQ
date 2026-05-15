@@ -3,6 +3,10 @@
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+if (!BASE_URL) {
+  throw new Error("VITE_API_BASE_URL is required");
+}
+
 // Token storage helpers (keep simple)
 export function getToken() {
   return localStorage.getItem("access_token");

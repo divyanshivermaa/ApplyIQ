@@ -1,0 +1,15 @@
+.git
+.venv
+__pycache__
+*.pyc
+node_modules
+internship-dashboard/node_modules
+internship-dashboard/dist
+dist
+.env
+.env.*
+README_PREVIEW.html
+error.txt
+startup_error.txt
+startup_v2.txt
+startup_v3.txt

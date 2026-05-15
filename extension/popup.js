@@ -34,9 +34,9 @@ function setStatus(msg) {
 async function getToken() {
   try {
     const data = await chrome.storage.local.get(["auth", "jwtToken", "token"]);
-    if (data?.auth?.token) return String(data.auth.token);
-    if (data?.jwtToken) return String(data.jwtToken);
-    if (data?.token) return String(data.token);
+    if (data?.auth?.token) return String(data.auth.token).replace(/\s+/g, '');
+    if (data?.jwtToken) return String(data.jwtToken).replace(/\s+/g, '');
+    if (data?.token) return String(data.token).replace(/\s+/g, '');
   } catch {}
   return "";
 }

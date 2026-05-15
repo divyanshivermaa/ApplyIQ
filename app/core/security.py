@@ -4,13 +4,14 @@ from typing import Any, Optional
 from jose import jwt
 from argon2 import PasswordHasher
 
+from app.core.config import settings
+
 # Argon2 use kar rahe hain directly kyunki passlib 3.13 me instability deta hai
 ph = PasswordHasher()
 
-# Ye JWT sign karne ke liye secret key (real project me env se lena)
-SECRET_KEY = "CHANGE_ME_TO_ENV_SECRET"
+SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 def hash_password(password: str) -> str:
     # Password ko secure hash me convert kar rahe hain

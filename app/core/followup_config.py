@@ -5,6 +5,7 @@ DEFAULT_BASELINE_DAYS = 14
 TERMINAL_STAGES = {
     "REJECTED",
     "OFFER",
+    "GHOSTED",
     "HIRED",
     "WITHDRAWN",
 }

@@ -45,7 +45,8 @@ class FollowUpService:
 
         checked = 0
         newly_overdue = 0
-        suggestions_created = 0
+        followup_suggestions_created = 0
+        status_suggestions_created = 0
         cleared = 0
 
         for app in apps:
@@ -66,6 +67,12 @@ class FollowUpService:
             if stage == "CAPTURED":
                 if getattr(app, "is_overdue", False):
                     self.repo.clear_application_overdue(session, app)
+                self.repo.resolve_pending_overdue_status_suggestions(
+                    session=session,
+                    application_id=app.id,
+                    resolved_status="DISMISSED",
+                    resolved_at=now,
+                )
                 continue
 
             # terminal stages -> clear overdue and skip
@@ -75,11 +82,17 @@ class FollowUpService:
                     self.repo.clear_application_overdue(session, app)
                     cleared += 1
 
-                # Also resolve any pending overdue follow-up reminders
+                # Also resolve any pending overdue follow-up reminders and overdue status suggestions
                 self.repo.resolve_pending_overdue_suggestions(
                     session=session,
                     application_id=app.id,
                     resolved_status="DONE",
+                    resolved_at=now,
+                )
+                self.repo.resolve_pending_overdue_status_suggestions(
+                    session=session,
+                    application_id=app.id,
+                    resolved_status="DISMISSED",
                     resolved_at=now,
                 )
                 continue
@@ -89,6 +102,12 @@ class FollowUpService:
                 if getattr(app, "is_overdue", False):
                     self.repo.clear_application_overdue(session, app)
                     cleared += 1
+                self.repo.resolve_pending_overdue_status_suggestions(
+                    session=session,
+                    application_id=app.id,
+                    resolved_status="DISMISSED",
+                    resolved_at=now,
+                )
                 continue
 
             baseline_days = self._compute_baseline_days(app)
@@ -100,16 +119,23 @@ class FollowUpService:
                     newly_overdue += 1
 
                 # create suggestion if no pending exists
-                if not self.repo.pending_overdue_suggestion_exists(session, app.id):
-                    title = "Follow up recommended"
-                    explanation = (
-                        f"Stage={stage}. Days since applied={days_since_applied} "
-                        f"> baseline={baseline_days}. Marked overdue by rule v1."
-                    )
+                title = "Follow up recommended"
+                explanation = (
+                    f"This application has been waiting in {stage} for {days_since_applied} days, "
+                    f"which is longer than the expected {baseline_days} days. Follow up with the employer."
+                )
 
-                    # due_on = today (or today+1) — deterministic
-                    due_on = now.date()
+                # due_on = today (or today+1) — deterministic
+                due_on = now.date()
 
+                pending_suggestions = self.repo.get_pending_overdue_suggestions(session, app.id)
+                if pending_suggestions:
+                    for pending in pending_suggestions:
+                        pending.title = title
+                        pending.explanation = explanation
+                        pending.due_on = due_on
+                        session.add(pending)
+                else:
                     self.repo.create_overdue_suggestion(
                         session=session,
                         user_id=app.user_id,
@@ -121,7 +147,23 @@ class FollowUpService:
                         due_on=due_on,
                         rule_version="v1",
                     )
-                    suggestions_created += 1
+                    followup_suggestions_created += 1
+
+                if not self.repo.pending_overdue_status_suggestion_exists(session, app.id):
+                    status_explanation = (
+                        f"This application has been waiting in {stage} for {days_since_applied} days, "
+                        f"which is longer than the expected {baseline_days} days. Consider following up with the employer."
+                    )
+                    self.repo.create_overdue_status_suggestion(
+                        session=session,
+                        user_id=app.user_id,
+                        application_id=app.id,
+                        suggested_stage=stage,
+                        explanation=status_explanation,
+                        confidence=70,
+                        source_type="OVERDUE",
+                    )
+                    status_suggestions_created += 1
 
         # एक ही commit में सब save करें
         session.commit()
@@ -129,7 +171,8 @@ class FollowUpService:
         return {
             "checked": checked,
             "newly_overdue": newly_overdue,
-            "suggestions_created": suggestions_created,
+            "followup_suggestions_created": followup_suggestions_created,
+            "status_suggestions_created": status_suggestions_created,
             "cleared_overdue": cleared,
             "ran_at_utc": now.isoformat(),
         }

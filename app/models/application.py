@@ -15,7 +15,7 @@ class Application(SQLModel, table=True):
     company_name: str = Field(index=True, nullable=False)
     role_title: str = Field(nullable=False)
 
-    job_url: str = Field(index=True, nullable=False)
+    job_url: Optional[str] = Field(default=None, index=True, nullable=True)
     platform: Optional[str] = Field(index=True, default=None)
     location: Optional[str] = Field(default=None)
 
@@ -37,3 +37,7 @@ class Application(SQLModel, table=True):
     user: "User" = Relationship(back_populates="applications")
     resume: Optional["Resume"] = Relationship(back_populates="applications")
     stages: List["ApplicationStage"] = Relationship(back_populates="application")
+    suggestions: List["StatusSuggestion"] = Relationship(
+        back_populates="application",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )

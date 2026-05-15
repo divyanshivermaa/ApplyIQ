@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import LoadingState from "../components/common/LoadingState";
 import EmptyState from "../components/common/EmptyState";
@@ -117,13 +118,21 @@ export default function Suggestions() {
     <>
       <Navbar />
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-wine-50">
-            Suggestions
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-wine-200/80">
-            Review system-generated stage suggestions before applying changes.
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-wine-50">
+              Suggestions
+            </h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-wine-200/80">
+              Review system-generated stage suggestions before applying changes.
+            </p>
+          </div>
+          <Link
+            to="/"
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
+          >
+            ← Back to Home
+          </Link>
         </div>
 
         <ErrorBox message={err} />

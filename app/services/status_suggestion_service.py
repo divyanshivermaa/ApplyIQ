@@ -6,7 +6,9 @@ from app.repositories.status_suggestion_repository import StatusSuggestionReposi
 from app.models.application import Application
 from app.models.application_stage import ApplicationStage
 from app.models.status_suggestion import StatusSuggestion
+from app.models.followup_suggestion import FollowUpSuggestion
 from app.api.schemas.status_suggestions_expand import StatusSuggestionExpanded
+from app.core.followup_config import OVERDUE_ELIGIBLE_STAGES, TERMINAL_STAGES
 
 
 class StatusSuggestionService:
@@ -77,6 +79,22 @@ class StatusSuggestionService:
             stage=applied_stage,
         )
         self.session.add(stage_row)
+
+        stage_key = applied_stage.upper()
+        if stage_key in TERMINAL_STAGES or stage_key not in OVERDUE_ELIGIBLE_STAGES:
+            app.is_overdue = False
+            app.overdue_at = None
+            app.overdue_baseline_days = None
+            pending_followups = self.session.exec(
+                select(FollowUpSuggestion)
+                .where(FollowUpSuggestion.application_id == app.id)
+                .where(FollowUpSuggestion.kind == "OVERDUE")
+                .where(FollowUpSuggestion.status == "PENDING")
+            ).all()
+            for followup in pending_followups:
+                followup.status = "DONE"
+                followup.resolved_at = datetime.now(timezone.utc)
+                self.session.add(followup)
 
         s.status = "CONFIRMED"
         s.reviewed_at = datetime.now(timezone.utc)

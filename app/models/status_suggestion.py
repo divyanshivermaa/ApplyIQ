@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Index
 
 class StatusSuggestion(SQLModel, table=True):
@@ -13,6 +13,7 @@ class StatusSuggestion(SQLModel, table=True):
 
     user_id: int = Field(foreign_key="user.id", index=True, nullable=False)
     application_id: int = Field(foreign_key="application.id", index=True, nullable=False)
+    application: "Application" = Relationship(back_populates="suggestions")
 
     # Suggested stage e.g. "REJECTED", "OA", "INTERVIEW"
     suggested_stage: str = Field(index=True, nullable=False)

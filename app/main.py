@@ -18,13 +18,11 @@ from app.api.routes.email_signal import router as email_signal_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # app start à¤¹à¥‹à¤¤à¥‡ à¤¹à¥€ scheduler start
     scheduler = get_scheduler()
 
     if settings.FOLLOWUP_JOB_ENABLED:
         trigger = build_daily_trigger()
 
-        # replace_existing=True à¤¤à¤¾à¤•à¤¿ restart à¤ªà¤° duplicate job à¤¨à¤¾ à¤¬à¤¨à¥‡
         scheduler.add_job(
             run_followup_daily_job,
             trigger=trigger,
@@ -35,7 +33,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # app à¤¬à¤‚à¤¦ à¤¹à¥‹à¤¤à¥‡ time scheduler shutdown
     if scheduler.running:
         scheduler.shutdown(wait=False)
 
@@ -46,12 +43,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8000",  # docs/dashboard
-        "http://localhost:8000",  # docs/dashboard
-    ],
+    allow_origins=settings.cors_origins_list,
     allow_origin_regex=r"chrome-extension://.*",
     allow_credentials=True,
     allow_methods=["*"],

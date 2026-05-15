@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 from sqlmodel import Session
 
 from app.db.session import get_session
@@ -16,7 +16,7 @@ service = ApplicationService()
 class ApplicationCreateRequest(BaseModel):
     company_name: str
     role_title: str
-    job_url: str  # HttpUrl strict bhi kar sakte, abhi string rakhenge extension safety ke liye
+    job_url: Optional[str] = None
     platform: Optional[str] = None
     location: Optional[str] = None
     job_type: Optional[str] = None
@@ -25,17 +25,18 @@ class ApplicationCreateRequest(BaseModel):
     resume_id: Optional[int] = None
     resume_slot: Optional[int] = None
     date_applied: Optional[date] = None
+    applied_at: Optional[datetime] = None
     current_stage: Optional[str] = None  # default CAPTURED in service
 
 class StageAddRequest(BaseModel):
     stage: str
 
 class ApplicationOut(BaseModel):
-    id: int
-    user_id: int
-    company_name: str
-    role_title: str
-    job_url: str
+    id: Optional[int] = None
+    user_id: Optional[int] = None
+    company_name: Optional[str] = None
+    role_title: Optional[str] = None
+    job_url: Optional[str] = None
     platform: Optional[str] = None
     location: Optional[str] = None
     job_type: Optional[str] = None
@@ -44,11 +45,11 @@ class ApplicationOut(BaseModel):
     resume_id: Optional[int] = None
     resume_slot: Optional[int] = None
     date_applied: Optional[date] = None
-    current_stage: str
-    is_overdue: bool
+    current_stage: Optional[str] = None
+    is_overdue: Optional[bool] = None
     overdue_at: Optional[datetime] = None
     overdue_baseline_days: Optional[int] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
 class ApplicationUpdateRequest(BaseModel):
     company_name: Optional[str] = None
@@ -61,6 +62,7 @@ class ApplicationUpdateRequest(BaseModel):
     role_category: Optional[str] = None
     resume_slot: Optional[int] = None
     date_applied: Optional[date] = None
+    applied_at: Optional[datetime] = None
     current_stage: Optional[str] = None
 
 def _attach_resume_slot(app: Application, session: Session, user_id: int) -> dict:
@@ -98,16 +100,20 @@ def create_application(
 
         data["resume_id"] = resolved_resume_id
         created = service.create_application(session, user.id, data)
-        return _attach_resume_slot(created, session, user.id)
+        return created
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("", response_model=List[ApplicationOut])
 def list_applications(
+    sort: Optional[str] = "recent",
     session: Session = Depends(get_session),
     user=Depends(get_current_user),
 ):
-    apps = service.list_applications(session, user.id)
+    sort_key = (sort or "recent").lower()
+    if sort_key not in ("recent", "old"):
+        raise HTTPException(status_code=400, detail="Invalid sort value; use 'recent' or 'old'")
+    apps = service.list_applications(session, user.id, sort=sort_key)
     return [_attach_resume_slot(a, session, user.id) for a in apps]
 
 @router.post("/{app_id}/stages")

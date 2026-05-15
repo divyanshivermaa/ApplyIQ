@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { login } from "../api/auth";
 
 export default function Login() {
@@ -23,28 +24,28 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#0f0a0d] flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md transition-colors dark:border-wine-800 dark:bg-[#1a1116]">
-        <div className="text-xl font-semibold text-gray-800 dark:text-wine-50">Login</div>
-        <div className="text-sm text-gray-500 dark:text-wine-200/80 mt-1">
-          Use the same credentials as backend. (OAuth2PasswordRequestForm)
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-4">
+      <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md transition-colors dark:border-gray-800 dark:bg-gray-900/60">
+        <div className="text-xl font-semibold text-gray-800 dark:text-white">Login</div>
+        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Enter your account email and password to access the dashboard.
         </div>
 
         <form onSubmit={handle} className="mt-5 space-y-3">
           <div>
-            <label className="text-sm text-gray-700 dark:text-wine-100">Email</label>
+            <label className="text-sm text-gray-700 dark:text-gray-100">Email</label>
             <input
-              className="mt-1 w-full border rounded-xl px-3 py-2 bg-white text-gray-800 dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+              className="mt-1 w-full border rounded-xl px-3 py-2 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
             />
           </div>
           <div>
-            <label className="text-sm text-gray-700 dark:text-wine-100">Password</label>
+            <label className="text-sm text-gray-700 dark:text-gray-100">Password</label>
             <div className="relative mt-1">
               <input
-                className="w-full border rounded-xl px-3 py-2 pr-10 bg-white text-gray-800 dark:border-wine-700 dark:bg-[#24131b] dark:text-wine-100"
+                className="w-full border rounded-xl px-3 py-2 pr-10 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -54,7 +55,7 @@ export default function Login() {
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? "Hide password" : "Show password"}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-800 dark:text-wine-200 dark:hover:text-wine-50"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white"
               >
                 <svg
                   width="18"
@@ -76,13 +77,20 @@ export default function Login() {
 
           <button
             disabled={loading}
-            className="w-full rounded-xl bg-black text-white py-2 hover:opacity-90 disabled:opacity-60 dark:bg-wine-600 dark:hover:bg-wine-500"
+            className="w-full rounded-xl bg-black py-2 text-white transition hover:bg-gray-900 disabled:opacity-60 dark:bg-blue-600 dark:hover:bg-blue-500"
           >
             {loading ? "Logging in..." : "Login"}
           </button>
 
           {msg ? <div className="text-sm text-red-600 dark:text-red-300">{msg}</div> : null}
         </form>
+
+        <div className="mt-4 text-sm text-gray-600 dark:text-gray-300">
+          Don&apos;t have an account?{' '}
+          <Link to="/signup" className="font-medium text-blue-600 hover:underline dark:text-blue-300">
+            Create one.
+          </Link>
+        </div>
       </div>
     </div>
   );

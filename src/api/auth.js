@@ -3,7 +3,6 @@
 // Login using OAuth2PasswordRequestForm
 // It requires application/x-www-form-urlencoded (not JSON)
 export async function login(email, password) {
-  // OAuth2PasswordRequestForm uses "username" field (can be email)
   const form = new URLSearchParams();
   form.append("username", email);
   form.append("password", password);
@@ -11,7 +10,6 @@ export async function login(email, password) {
   const data = await apiFetch("/auth/login", {
     method: "POST",
     headers: {
-      // Important: form-data encoded
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: form.toString(),
@@ -19,6 +17,23 @@ export async function login(email, password) {
 
   if (!data?.access_token) {
     throw new Error("Login failed: access_token not returned");
+  }
+
+  setToken(data.access_token);
+  return data;
+}
+
+export async function register(name, email, password) {
+  const data = await apiFetch("/auth/register", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name, email, password }),
+  });
+
+  if (!data?.access_token) {
+    throw new Error("Registration failed: access_token not returned");
   }
 
   setToken(data.access_token);

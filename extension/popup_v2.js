@@ -1,5 +1,6 @@
-﻿const $ = (id) => document.getElementById(id);
-const API_BASES = ["http://127.0.0.1:8000", "http://localhost:8000"];
+import { API_BASES } from "./config.js";
+
+const $ = (id) => document.getElementById(id);
 
 function setErr(msg) {
   const n = $("err");
@@ -63,7 +64,7 @@ function saveResumeSlot(value) {
 }
 
 async function saveToken(token) {
-  const clean = (token || "").trim();
+  const clean = (token || "").replace(/\s+/g, "");
   if (!clean) return false;
   await chrome.storage.local.set({
     auth: { token: clean, token_type: "bearer" },
@@ -177,7 +178,7 @@ async function onSubmit() {
     return;
   }
 
-  const typedToken = readKey({ v: $("tokenInput")?.value }, "v").trim();
+  const typedToken = readKey({ v: $("tokenInput")?.value }, "v").replace(/\s+/g, "");
   if (typedToken) {
     await saveToken(typedToken);
     const inp = $("tokenInput");

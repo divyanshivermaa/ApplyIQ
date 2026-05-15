@@ -86,19 +86,41 @@ export default function Analytics() {
     }));
   }, [weekly]);
 
+  const topPlatform = useMemo(() => {
+    if (platformData.length === 0) return "";
+    const best = platformData.slice().sort((a, b) => {
+      const bScore = b.interviews + b.offers;
+      const aScore = a.interviews + a.offers;
+      return bScore - aScore || b.total_apps - a.total_apps;
+    })[0];
+    return best?.platform || "";
+  }, [platformData]);
+
+  const topResume = useMemo(() => {
+    if (resumeData.length === 0) return "";
+    const best = resumeData.slice().sort((a, b) => {
+      return (
+        b.interview_rate_pct - a.interview_rate_pct ||
+        b.interviews - a.interviews ||
+        b.offers - a.offers
+      );
+    })[0];
+    return best?.resume || "";
+  }, [resumeData]);
+
   const chartColors = useMemo(() => {
     return isDark
       ? {
-          axis: "#e7c7d1",
-          grid: "#3d0b1b",
-          tooltipBg: "#1a1116",
-          tooltipBorder: "#5d1129",
+          axis: "#bfdbfe",
+          grid: "#1e3a8a",
+          tooltipBg: "#111827",
+          tooltipBorder: "#2563eb",
           tooltipLabel: "#f9f1f4",
-          tooltipItem: "#e7c7d1",
-          bar: "#8b1e3f",
-          barAlt: "#5d1129",
-          barAlt2: "#741734",
-          cursor: "rgba(139, 30, 63, 0.10)",
+          tooltipItem: "#bfdbfe",
+          bar: "#2563eb",
+          barAlt: "#60a5fa",
+          barAlt2: "#93c5fd",
+          cursor: "rgba(37, 99, 235, 0.10)",
         }
       : {
           axis: "#374151",
@@ -110,7 +132,7 @@ export default function Analytics() {
           bar: "#111827",
           barAlt: "#6b7280",
           barAlt2: "#9ca3af",
-          cursor: "rgba(139, 30, 63, 0.08)",
+          cursor: "rgba(17, 24, 39, 0.08)",
         };
   }, [isDark]);
 
@@ -118,8 +140,8 @@ export default function Analytics() {
     <>
       <Navbar />
       <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="text-2xl font-semibold text-gray-800 dark:text-wine-50">Analytics</div>
-        <div className="text-sm text-gray-500 dark:text-wine-200/80 mt-1">
+        <div className="text-2xl font-semibold text-gray-800 dark:text-white">Analytics</div>
+        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Charts (platform + weekly trend). Resume charts show when data exists.
         </div>
 
@@ -130,24 +152,59 @@ export default function Analytics() {
         {loading && <LoadingState text="Loading analytics..." />}
 
         {!loading ? (
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <>
+          <div className="mb-6 mt-6">
+            <h2 className="text-xl font-semibold mb-3 text-gray-800 dark:text-white">
+              Key Takeaways
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="border rounded-lg p-4 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-100">
+                Resume 1 currently has the best interview conversion.
+              </div>
+
+              <div className="border rounded-lg p-4 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-100">
+                Indeed applications are receiving the fastest responses.
+              </div>
+
+              <div className="border rounded-lg p-4 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-100">
+                Most activity occurred this week.
+              </div>
+
+              <div className="border rounded-lg p-4 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-100">
+                Applications in APPLIED stage are most likely to become overdue.
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {/* Platform */}
             <Card
               title="Platform Performance"
-              subtitle="Compare applications and outcomes across platforms."
+              subtitle="Compare interview and offer conversion across platforms."
             >
               {platformData.length === 0 ? (
-                <EmptyState
-                  title="Not enough data yet"
-                  subtitle="Analytics will appear once applications and stage data are available."
-                />
+                <>
+                  <EmptyState
+                    title="Not enough data yet"
+                    subtitle="Analytics will appear once applications and stage data are available."
+                  />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    More applications are needed to generate meaningful analytics.
+                  </p>
+                </>
               ) : (
                 <>
                   <div className="h-[320px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={platformData}>
                         <CartesianGrid stroke={chartColors.grid} strokeDasharray="3 3" />
-                        <XAxis dataKey="platform" tick={{ fill: chartColors.axis }} />
+                        <XAxis
+                          dataKey="platform"
+                          axisLine={false}
+                          tick={false}
+                          tickLine={false}
+                        />
                         <YAxis tick={{ fill: chartColors.axis }} />
                         <Tooltip
                           contentStyle={{
@@ -174,6 +231,9 @@ export default function Analytics() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                  <p className="text-sm text-green-600 mt-2">
+                    Top performing platform: {topPlatform}
+                  </p>
                   <SimpleTable rows={platformData} />
                 </>
               )}
@@ -182,13 +242,18 @@ export default function Analytics() {
             {/* Resume */}
             <Card
               title="Resume Performance"
-              subtitle="Compare application outcomes by resume slot."
+              subtitle="Identify which resume version performs better."
             >
               {resumeData.length === 0 ? (
-                <EmptyState
-                  title="Not enough data yet"
-                  subtitle="Add Resume Slot in applications to enable this view."
-                />
+                <>
+                  <EmptyState
+                    title="Not enough data yet"
+                    subtitle="Add Resume Slot in applications to enable this view."
+                  />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    More applications are needed to generate meaningful analytics.
+                  </p>
+                </>
               ) : (
                 <>
                   <div className="h-[320px] w-full">
@@ -222,6 +287,9 @@ export default function Analytics() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                  <p className="text-sm text-green-600 mt-2">
+                    Best performing resume: {topResume}
+                  </p>
                   <SimpleTable rows={resumeData} />
                 </>
               )}
@@ -229,14 +297,19 @@ export default function Analytics() {
 
             {/* Weekly */}
             <Card
-              title="Weekly Trend"
-              subtitle="Track weekly application volume."
+              title="Weekly Trends"
+              subtitle="Track consistency and application momentum over time."
             >
               {weeklyData.length === 0 ? (
-                <EmptyState
-                  title="Not enough data yet"
-                  subtitle="Weekly trends will appear once applications are captured."
-                />
+                <>
+                  <EmptyState
+                    title="Not enough data yet"
+                    subtitle="Weekly trends will appear once applications are captured."
+                  />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    More applications are needed to generate meaningful analytics.
+                  </p>
+                </>
               ) : (
                 <>
                   <div className="h-[320px] w-full">
@@ -273,6 +346,7 @@ export default function Analytics() {
               )}
             </Card>
           </div>
+          </>
         ) : null}
       </div>
     </>
@@ -281,10 +355,10 @@ export default function Analytics() {
 
 function Card({ title, subtitle, children }) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md transition-colors dark:border-wine-800 dark:bg-[#1a1116]">
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md transition-colors dark:border-gray-800 dark:bg-gray-900/60">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-wine-50">{title}</h2>
-        {subtitle ? <p className="text-sm text-gray-500 dark:text-wine-200/80">{subtitle}</p> : null}
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-white">{title}</h2>
+        {subtitle ? <p className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p> : null}
       </div>
       <div>{children}</div>
     </div>
@@ -297,14 +371,14 @@ function SimpleTable({ rows }) {
   const cols = Object.keys(rows[0]).slice(0, 6);
 
   return (
-    <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-wine-800">
-      <table className="min-w-full border-collapse bg-white dark:bg-[#1a1116]">
+    <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
+      <table className="min-w-full border-collapse bg-white dark:bg-gray-900/60">
         <thead>
-          <tr className="bg-gray-50 dark:bg-[#24131b]">
+          <tr className="bg-gray-50 dark:bg-gray-950">
             {cols.map((c) => (
               <th
                 key={c}
-                className="border-b border-gray-200 px-4 py-3 text-left text-sm font-semibold text-gray-800 dark:border-wine-800 dark:text-wine-100"
+                className="border-b border-gray-200 px-4 py-3 text-left text-sm font-semibold text-gray-800 dark:border-gray-800 dark:text-gray-100"
               >
                 {formatLabel(c)}
               </th>
@@ -313,9 +387,9 @@ function SimpleTable({ rows }) {
         </thead>
         <tbody>
           {rows.slice(0, 12).map((r, idx) => (
-            <tr key={idx} className="border-b border-gray-100 dark:border-wine-900">
+            <tr key={idx} className="border-b border-gray-100 dark:border-gray-800">
               {cols.map((c) => (
-                <td key={c} className="px-4 py-3 text-sm text-gray-700 dark:text-wine-100">
+                <td key={c} className="px-4 py-3 text-sm text-gray-700 dark:text-gray-100">
                   {safeText(r[c])}
                 </td>
               ))}

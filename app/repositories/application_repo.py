@@ -3,6 +3,8 @@ from sqlmodel import Session, select, delete
 from app.models.application import Application
 from app.models.application_stage import ApplicationStage
 from app.models.resume import Resume
+from app.models.status_suggestion import StatusSuggestion
+from app.models.followup_suggestion import FollowUpSuggestion
 
 class ApplicationRepository:
     def create_application(self, session: Session, app_obj: Application) -> Application:
@@ -24,9 +26,14 @@ class ApplicationRepository:
         stmt = select(Application).where(Application.id == app_id)
         return session.exec(stmt).first()
 
-    def list_for_user(self, session: Session, user_id: int) -> list[Application]:
+    def list_for_user(self, session: Session, user_id: int, sort: str = "recent") -> list[Application]:
         # User ke saare applications list kar rahe hain
-        stmt = select(Application).where(Application.user_id == user_id).order_by(Application.created_at.desc())
+        # sort: 'recent' (default) -> newest first, 'old' -> oldest first
+        stmt = select(Application).where(Application.user_id == user_id)
+        if sort == "old":
+            stmt = stmt.order_by(Application.created_at.asc())
+        else:
+            stmt = stmt.order_by(Application.created_at.desc())
         return list(session.exec(stmt).all())
 
     def get_by_user_and_url(self, session: Session, user_id: int, job_url: str) -> Application | None:
@@ -54,7 +61,26 @@ class ApplicationRepository:
         return session.exec(stmt).first()
 
     def delete_application(self, session: Session, app_id: int) -> None:
-        # Delete stages first to avoid FK constraint issues
+        # Delete dependent rows first to avoid FK constraint issues on existing DBs
+        session.exec(delete(StatusSuggestion).where(StatusSuggestion.application_id == app_id))
+        session.exec(delete(FollowUpSuggestion).where(FollowUpSuggestion.application_id == app_id))
         session.exec(delete(ApplicationStage).where(ApplicationStage.application_id == app_id))
         session.exec(delete(Application).where(Application.id == app_id))
         session.commit()
+
+    def resolve_pending_overdue_followups(
+        self,
+        session: Session,
+        application_id: int,
+        resolved_at: datetime,
+    ) -> None:
+        stmt = (
+            select(FollowUpSuggestion)
+            .where(FollowUpSuggestion.application_id == application_id)
+            .where(FollowUpSuggestion.kind == "OVERDUE")
+            .where(FollowUpSuggestion.status == "PENDING")
+        )
+        for row in session.exec(stmt).all():
+            row.status = "DONE"
+            row.resolved_at = resolved_at
+            session.add(row)
