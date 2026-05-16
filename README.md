@@ -216,10 +216,3 @@ npm run dev
 3. Load unpacked extension from the `extension/` directory
 ```
 
-## Resume-Worthy Talking Points
-
-- Built an internship intelligence platform with a React dashboard, FastAPI backend, PostgreSQL storage, and Chrome extension capture.
-- Designed deterministic follow-up intelligence and overdue detection for internship application pipelines.
-- Implemented multi-layer browser extraction with JSON-LD parsing and site-specific adapters.
-- Added resume-slot performance analytics to compare application outcomes and recommend the best resume variant.
-- Prioritized explainable, repeatable logic over opaque AI/LLM-based recommendations.
