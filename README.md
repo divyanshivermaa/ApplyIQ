@@ -1,4 +1,4 @@
-# ApplyIQ - Internship Application Intelligence System
+﻿# ApplyIQ - Internship Application Intelligence System
 
 ApplyIQ is an analytics-first internship intelligence platform that captures internship applications, measures resume performance, and surfaces deterministic next-step recommendations. The emphasis is on structured insights and follow-up intelligence, not just CRUD logging.
 
@@ -22,10 +22,10 @@ ApplyIQ solves the problem of scattershot internship tracking by turning raw app
 ## Platform Preview
 
 <p align="center">
-  <img src="docs/assets/screenshots/landing-page.png" width="920" alt="ApplyIQ landing page" style="border-radius: 12px;">
+  <img src="docs/assets/screenshots/landing-with-extension-capture.png" width="920" alt="ApplyIQ landing page with extension-assisted job capture" style="border-radius: 12px;">
 </p>
 <p align="center">
-  <sub><strong>Landing page.</strong> Introduces ApplyIQ as an analytics-first internship intelligence system focused on bottleneck detection and resume strategy.</sub>
+  <sub><strong>Landing page with extension-assisted capture.</strong> Shows how ApplyIQ pairs the intelligence dashboard with automatic job-page extraction across hiring platforms.</sub>
 </p>
 
 <br>
@@ -150,7 +150,7 @@ The Chrome extension captures internship applications through a layered extracti
 2. **Layer 2: JSON-LD extraction**
    - Extracts structured metadata when available from page schema.
 3. **Layer 3: site adapters**
-   - Custom extraction rules for target platforms like LinkedIn and other hiring pages.
+    - Custom extraction rules for target platforms like LinkedIn and other hiring pages.
 4. **Confidence-aware merging**
    - Combines candidate values from all layers and selects the most reliable source to build the final application record.
 
@@ -169,15 +169,7 @@ The Chrome extension captures internship applications through a layered extracti
 
 ## Deployment
 
-### Backend production checklist
-- Copy `.env.example` to `.env` on the server and set real values for `DATABASE_URL`, `SECRET_KEY`, and `CORS_ORIGINS`.
-- Use a long random `SECRET_KEY`; the app refuses the placeholder value when `ENV=production`.
-- Run migrations before starting the API: `alembic upgrade head`.
-- Start the API with a production ASGI server command such as `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
-- Keep `ADMIN_DEV_ENDPOINTS_ENABLED=false` outside local development.
-
 ### Frontend deployment
-- Copy `internship-dashboard/.env.example` to `internship-dashboard/.env` and set `VITE_API_BASE_URL` to the deployed backend URL.
 - Build with Vite: `cd internship-dashboard && npm install && npm run build`
 - Deploy static assets to Netlify, Vercel, S3, or any static hosting service.
 
@@ -185,15 +177,10 @@ The Chrome extension captures internship applications through a layered extracti
 - Run FastAPI with Uvicorn/Gunicorn
 - Use a managed PostgreSQL instance for production
 - Configure environment variables for database and authentication secrets
-- `Dockerfile` and `Procfile` are included for common container/PaaS deployments.
-
-### Chrome extension deployment
-- Update `extension/config.js` so `API_ROOT`, `API_BASES`, and `DASHBOARD_URL` point to the deployed backend/dashboard.
-- Keep the extension loaded from the `extension/` directory during local testing.
 
 ### Environment setup
-- Root `.env` should follow `.env.example`.
-- Frontend env should follow `internship-dashboard/.env.example`.
+- Root `.env` should include `DATABASE_URL`, `SECRET_KEY`, and any scheduler flags used by the backend.
+- Frontend should set `VITE_API_BASE_URL` to the backend API URL.
 
 ### Local development setup
 ```bash
