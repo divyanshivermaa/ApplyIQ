@@ -139,3 +139,31 @@ class AnalyticsService:
             )
 
         return insights
+
+    def overdue_summary(self, session, user_id: int) -> dict:
+        q_total = text("""
+            SELECT COUNT(*) AS total_overdue
+            FROM application
+            WHERE user_id = :user_id
+              AND is_overdue = TRUE
+        """)
+        total_row = session.execute(q_total, {"user_id": user_id}).mappings().first()
+        total_overdue = int(total_row["total_overdue"]) if total_row else 0
+
+        q_platform = text("""
+            SELECT platform, COUNT(*) AS cnt
+            FROM application
+            WHERE user_id = :user_id
+              AND is_overdue = TRUE
+            GROUP BY platform
+            ORDER BY cnt DESC
+        """)
+        platform_rows = session.execute(q_platform, {"user_id": user_id}).mappings().all()
+        overdue_by_platform = [
+            {"platform": r["platform"], "count": int(r["cnt"])}
+            for r in platform_rows
+        ]
+        return {
+            "total_overdue": total_overdue,
+            "overdue_by_platform": overdue_by_platform,
+        }

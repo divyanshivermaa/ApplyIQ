@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import Navbar from "../components/Navbar";
+import { useQueryClient } from "@tanstack/react-query";
 import ErrorBox from "../components/ErrorBox";
 import LoadingState from "../components/common/LoadingState";
 import EmptyState from "../components/common/EmptyState";
-import { listApplications, createApplication, addStage, deleteApplication, updateApplication } from "../api/applications";
+import { createApplication, addStage, deleteApplication, updateApplication } from "../api/applications";
 import { safeText } from "../utils/uiHelpers";
 import useResumeSlotCount from "../hooks/useResumeSlotCount";
+import { queryKeys, useApplications, useInvalidateApplications } from "../hooks/queries";
 
 function getDaysAgo(date) {
   if (!date) return 0;
@@ -14,12 +15,17 @@ function getDaysAgo(date) {
 }
 
 export default function Applications() {
-  const [apps, setApps] = useState([]);
   const [q, setQ] = useState("");
   const [sortKey, setSortKey] = useState("recent");
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const invalidateApplications = useInvalidateApplications();
+  const { data: appsData, error: appsError, isLoading: loading } = useApplications(sortKey);
+  const apps = useMemo(
+    () => (Array.isArray(appsData) ? appsData : []),
+    [appsData]
+  );
   const [stageSelections, setStageSelections] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -44,24 +50,9 @@ export default function Applications() {
   const [appliedAt, setAppliedAt] = useState("");
   const [resumeVersion, setResumeVersion] = useState("1");
 
-
-  async function load() {
-    setErr("");
-    setLoading(true);
-    try {
-      const appsData = await listApplications(sortKey);
-      const nextApps = Array.isArray(appsData) ? appsData : [];
-      setApps(nextApps);
-    } catch (e) {
-      setErr(e.message || "Unable to load applications.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    load();
-  }, [sortKey]);
+    setErr(appsError?.message || "");
+  }, [appsError]);
 
   useEffect(() => {
     const selected = Number(resumeVersion);
@@ -142,7 +133,7 @@ export default function Applications() {
 
       setOpen(false);
       setMsg("Application created.");
-      await load();
+      await invalidateApplications();
     } catch (e) {
       setErr(e.message || "Could not create application.");
     }
@@ -156,7 +147,7 @@ export default function Applications() {
       if (!selectedStage) return;
       await addStage(appId, { stage: selectedStage });
       setMsg(`Stage added: ${selectedStage}`);
-      await load();
+      await invalidateApplications();
     } catch (e) {
       setErr(e.message || "Could not add the selected stage.");
     }
@@ -168,7 +159,10 @@ export default function Applications() {
 
     try {
       await deleteApplication(appId);
-      setApps((prev) => prev.filter((item) => item.id !== appId));
+      queryClient.setQueryData(queryKeys.applications(sortKey), (prev) =>
+        Array.isArray(prev) ? prev.filter((item) => item.id !== appId) : prev
+      );
+      await invalidateApplications();
       setStageSelections((prev) => {
         const next = { ...prev };
         delete next[appId];
@@ -214,7 +208,12 @@ export default function Applications() {
       }
 
       const updated = await updateApplication(appId, payload);
-      setApps((prev) => prev.map((item) => (item.id === appId ? updated : item)));
+      queryClient.setQueryData(queryKeys.applications(sortKey), (prev) =>
+        Array.isArray(prev)
+          ? prev.map((item) => (item.id === appId ? updated : item))
+          : prev
+      );
+      await invalidateApplications();
       setStageSelections((prev) => ({
         ...prev,
         [appId]: updated.current_stage || prev[appId] || "CAPTURED",
@@ -468,7 +467,6 @@ export default function Applications() {
 
   return (
     <>
-      <Navbar />
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
           <div>
@@ -614,7 +612,7 @@ export default function Applications() {
             ) : null}
             {completed.map((a) => renderCard(a))}
 
-            {false && filtered.map((a) => (
+            {filtered.length < 0 && filtered.map((a) => (
               <div key={a.id} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md transition-colors dark:border-gray-800 dark:bg-gray-900/60">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   {editingId === a.id ? (
@@ -798,7 +796,7 @@ export default function Applications() {
               </div>
             ))}
 
-            {false && (filtered.length === 0 ? (
+            {filtered.length < 0 && (filtered.length === 0 ? (
               <div className="text-sm text-gray-500">No applications found.</div>
             ) : null)}
           </div>

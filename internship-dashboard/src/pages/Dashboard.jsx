@@ -1,19 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "../components/Navbar";
 import ErrorBox from "../components/ErrorBox";
 import LoadingState from "../components/common/LoadingState";
-import EmptyState from "../components/common/EmptyState";
-import StatCard from "../components/StatCard";
 import ActivitySummary from "../components/ActivitySummary";
-import {
-  getInsights,
-  getOverdueByStage,
-  getOverdueSummary,
-  getPlatformPerf,
-  getResumePerf,
-} from "../api/analytics";
-import { listApplications } from "../api/applications";
+import { useDashboardOverview } from "../hooks/queries";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 function totalFromRows(rows) {
@@ -34,20 +24,19 @@ function getBestResumeSlot(rows) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [insights, setInsights] = useState([]);
-  const [overdue, setOverdue] = useState([]);
-  const [applications, setApplications] = useState([]);
-  const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [todos, setTodos] = useState([]);
+  const { data, error, isLoading } = useDashboardOverview();
+  const [todos, setTodos] = useState(() => {
+    try {
+      const raw = localStorage.getItem("manual_todos");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
   const [todoTitle, setTodoTitle] = useState("");
   const [todoNote, setTodoNote] = useState("");
   const [todoDeadline, setTodoDeadline] = useState("");
   const [todoLink, setTodoLink] = useState("");
-  const [overdueCount, setOverdueCount] = useState(0);
-  const [topStage, setTopStage] = useState("");
-  const [topPlatform, setTopPlatform] = useState("");
-  const [bestResume, setBestResume] = useState("");
   const [isDark, setIsDark] = useState(document.documentElement.classList.contains("dark"));
 
   useEffect(() => {
@@ -83,52 +72,23 @@ export default function Dashboard() {
         };
   }, [isDark]);
 
-  useEffect(() => {
-    async function load() {
-      setErr("");
-      setLoading(true);
-      try {
-        const [i, o, summary, platformPerf, resumePerf, apps] = await Promise.all([
-          getInsights(),
-          getOverdueByStage(),
-          getOverdueSummary(),
-          getPlatformPerf(),
-          getResumePerf(),
-          listApplications(),
-        ]);
-        const nextInsights = Array.isArray(i) ? i : [];
-        const nextOverdue = Array.isArray(o) ? o : [];
-        const nextPlatforms = Array.isArray(platformPerf) ? platformPerf : [];
-        const nextResumes = Array.isArray(resumePerf) ? resumePerf : [];
-
-        setInsights(nextInsights);
-        setOverdue(nextOverdue);
-        setOverdueCount(Number(summary?.total_overdue ?? totalFromRows(nextOverdue)));
-        setTopStage(nextOverdue[0]?.stage || "");
-        setTopPlatform(nextPlatforms[0]?.platform || "");
-        setBestResume(getBestResumeSlot(nextResumes));
-        setApplications(Array.isArray(apps) ? apps : []);
-      } catch (e) {
-        setErr(e.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("manual_todos");
-      if (raw) setTodos(JSON.parse(raw));
-    } catch {}
-  }, []);
+  const overdue = Array.isArray(data?.overdue_by_stage) ? data.overdue_by_stage : [];
+  const applications = Array.isArray(data?.applications) ? data.applications : [];
+  const platformPerf = Array.isArray(data?.platform_performance) ? data.platform_performance : [];
+  const resumePerf = Array.isArray(data?.resume_performance) ? data.resume_performance : [];
+  const overdueCount = Number(data?.overdue_summary?.total_overdue ?? totalFromRows(overdue));
+  const topStage = overdue[0]?.stage || "";
+  const topPlatform = platformPerf[0]?.platform || "";
+  const bestResume = getBestResumeSlot(resumePerf);
+  const err = error?.message || "";
 
   function persistTodos(next) {
     setTodos(next);
     try {
       localStorage.setItem("manual_todos", JSON.stringify(next));
-    } catch {}
+    } catch {
+      // localStorage can be unavailable in private or restricted contexts.
+    }
   }
 
   function addTodo() {
@@ -161,12 +121,8 @@ export default function Dashboard() {
     );
   }
 
-  const totalOverdue = overdue.reduce((sum, r) => sum + (r.count || 0), 0);
-
-
   return (
     <>
-      <Navbar />
       <div className="max-w-6xl mx-auto px-4 py-6 transition-colors bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-white">
         <div className="text-2xl font-semibold text-gray-800 dark:text-white">Dashboard</div>
         <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -177,9 +133,9 @@ export default function Dashboard() {
           <ErrorBox message={err} />
         </div>
 
-        {loading && <LoadingState text="Loading analytics..." />}
+        {isLoading && <LoadingState text="Loading analytics..." />}
 
-        {!loading ? (
+        {!isLoading ? (
           <>
             <div className="mb-6 mt-6">
               <h2 className="text-xl font-semibold mb-3 text-gray-800 dark:text-white">
@@ -254,21 +210,6 @@ export default function Dashboard() {
             </div>
 
             <ActivitySummary applications={applications} />
-
-            {/*
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-              <StatCard
-                title="Total overdue follow-ups"
-                value={totalOverdue}
-                subtitle="Overdue items across stages"
-              />
-              <StatCard
-                title="Insights generated"
-                value={insights.length}
-                subtitle="Actionable analytics summaries"
-              />
-            </div>
-            */}
 
             <div className="mt-6">
               <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow-md transition-colors dark:border-gray-800 dark:bg-gray-900/60">

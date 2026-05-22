@@ -8,8 +8,12 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  function clearError() {
+    setError("");
+  }
 
   useEffect(() => {
     if (getToken()) navigate("/dashboard", { replace: true });
@@ -17,13 +21,20 @@ export default function Login() {
 
   async function handle(e) {
     e.preventDefault();
-    setMsg("");
+    clearError();
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+
     setLoading(true);
     try {
-      await login(email, password);
+      await login(trimmedEmail, password);
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setMsg(err.message || "Login failed");
+      setError(err.message || "Login failed. Please check your credentials and try again.");
     } finally {
       setLoading(false);
     }
@@ -43,8 +54,12 @@ export default function Login() {
             <input
               className="mt-1 w-full border rounded-xl px-3 py-2 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) clearError();
+              }}
               placeholder="you@example.com"
+              autoComplete="email"
             />
           </div>
           <div>
@@ -54,8 +69,12 @@ export default function Login() {
                 className="w-full border rounded-xl px-3 py-2 pr-10 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                 type={showPassword ? "text" : "password"}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) clearError();
+                }}
                 placeholder="********"
+                autoComplete="current-password"
               />
               <button
                 type="button"
@@ -81,14 +100,29 @@ export default function Login() {
             </div>
           </div>
 
+          {error ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200"
+            >
+              <p className="font-medium">Could not sign in</p>
+              <p className="mt-1">{error}</p>
+              <button
+                type="button"
+                onClick={clearError}
+                className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-800 transition hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-100 dark:hover:bg-red-900/60"
+              >
+                Try again
+              </button>
+            </div>
+          ) : null}
+
           <button
             disabled={loading}
             className="w-full rounded-xl bg-black py-2 text-white transition hover:bg-gray-900 disabled:opacity-60 dark:bg-blue-600 dark:hover:bg-blue-500"
           >
             {loading ? "Logging in..." : "Login"}
           </button>
-
-          {msg ? <div className="text-sm text-red-600 dark:text-red-300">{msg}</div> : null}
         </form>
 
         <div className="mt-4 text-sm text-gray-600 dark:text-gray-300">

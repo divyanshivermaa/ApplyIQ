@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import Navbar from "../components/Navbar";
 import ErrorBox from "../components/ErrorBox";
 import LoadingState from "../components/common/LoadingState";
 import EmptyState from "../components/common/EmptyState";
-import { getPlatformPerf, getResumePerf, getWeeklyTrend } from "../api/analytics";
 import { formatLabel, safeText } from "../utils/uiHelpers";
+import { useAnalyticsPage } from "../hooks/queries";
 import {
   ResponsiveContainer,
   BarChart,
@@ -16,11 +15,20 @@ import {
 } from "recharts";
 
 export default function Analytics() {
-  const [platform, setPlatform] = useState([]);
-  const [resume, setResume] = useState([]);
-  const [weekly, setWeekly] = useState([]);
-  const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(true);
+  const { data, error, isLoading: loading } = useAnalyticsPage();
+  const platform = useMemo(
+    () => (Array.isArray(data?.platform) ? data.platform : []),
+    [data]
+  );
+  const resume = useMemo(
+    () => (Array.isArray(data?.resume) ? data.resume : []),
+    [data]
+  );
+  const weekly = useMemo(
+    () => (Array.isArray(data?.weekly) ? data.weekly : []),
+    [data]
+  );
+  const err = error?.message || "";
   const [isDark, setIsDark] = useState(
     document.documentElement.classList.contains("dark")
   );
@@ -32,28 +40,6 @@ export default function Analytics() {
     });
     observer.observe(root, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    async function load() {
-      setErr("");
-      setLoading(true);
-      try {
-        const [p, r, w] = await Promise.all([
-          getPlatformPerf(),
-          getResumePerf(),
-          getWeeklyTrend(),
-        ]);
-        setPlatform(Array.isArray(p) ? p : []);
-        setResume(Array.isArray(r) ? r : []);
-        setWeekly(Array.isArray(w) ? w : []);
-      } catch (e) {
-        setErr(e.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
   }, []);
 
   // ✅ Map to your backend keys
@@ -138,7 +124,6 @@ export default function Analytics() {
 
   return (
     <>
-      <Navbar />
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="text-2xl font-semibold text-gray-800 dark:text-white">Analytics</div>
         <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">

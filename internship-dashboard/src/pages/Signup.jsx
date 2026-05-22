@@ -9,8 +9,12 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  function clearError() {
+    setError("");
+  }
 
   useEffect(() => {
     if (getToken()) navigate("/dashboard", { replace: true });
@@ -18,20 +22,20 @@ export default function Signup() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setMsg("");
+    clearError();
 
     if (name.trim().length < 2) {
-      setMsg("Please enter your name.");
+      setError("Please enter your name.");
       return;
     }
 
     if (!email.includes("@") || email.trim().length < 5) {
-      setMsg("Please enter a valid email address.");
+      setError("Please enter a valid email address.");
       return;
     }
 
     if (password.length < 8) {
-      setMsg("Password must be at least 8 characters.");
+      setError("Password must be at least 8 characters.");
       return;
     }
 
@@ -40,7 +44,7 @@ export default function Signup() {
       await register(name.trim(), email.trim(), password);
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setMsg(err.message || "Registration failed.");
+      setError(err.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -109,14 +113,29 @@ export default function Signup() {
             </div>
           </div>
 
+          {error ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200"
+            >
+              <p className="font-medium">Could not create account</p>
+              <p className="mt-1">{error}</p>
+              <button
+                type="button"
+                onClick={clearError}
+                className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-800 transition hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-100 dark:hover:bg-red-900/60"
+              >
+                Try again
+              </button>
+            </div>
+          ) : null}
+
           <button
             disabled={loading}
             className="w-full rounded-xl bg-black py-2 text-white transition hover:bg-gray-900 disabled:opacity-60 dark:bg-blue-600 dark:hover:bg-blue-500"
           >
             {loading ? "Creating account..." : "Sign up"}
           </button>
-
-          {msg ? <div className="text-sm text-red-600 dark:text-red-300">{msg}</div> : null}
         </form>
 
         <div className="mt-4 text-sm text-gray-600 dark:text-gray-300">

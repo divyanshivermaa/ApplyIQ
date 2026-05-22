@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Navbar from "../components/Navbar";
 import { getToken } from "../api/client";
 
 export default function Extension() {
@@ -20,7 +19,6 @@ export default function Extension() {
 
   return (
     <>
-      <Navbar />
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="text-2xl font-semibold text-gray-800 dark:text-white">Extension</div>
         <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">

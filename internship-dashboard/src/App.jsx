@@ -1,13 +1,16 @@
+import { lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import Dashboard from "./pages/Dashboard";
-import Suggestions from "./pages/Suggestions";
-import Applications from "./pages/Applications";
-import Analytics from "./pages/Analytics";
-import Extension from "./pages/Extension";
+import AppLayout from "./layouts/AppLayout";
 import { getToken } from "./api/client";
+
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Suggestions = lazy(() => import("./pages/Suggestions"));
+const Applications = lazy(() => import("./pages/Applications"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+const Extension = lazy(() => import("./pages/Extension"));
 
 function PrivateRoute({ children }) {
   return getToken() ? children : <Navigate to="/login" replace />;
@@ -38,47 +41,20 @@ export default function App() {
             </PublicRoute>
           }
         />
+        <Route
+          element={
+            <PrivateRoute>
+              <AppLayout />
+            </PrivateRoute>
+          }
+        >
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/suggestions" element={<Suggestions />} />
+          <Route path="/applications" element={<Applications />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/extension" element={<Extension />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
-        <Route
-          path="/dashboard"
-          element={
-            <PrivateRoute>
-              <Dashboard />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/suggestions"
-          element={
-            <PrivateRoute>
-              <Suggestions />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/applications"
-          element={
-            <PrivateRoute>
-              <Applications />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/analytics"
-          element={
-            <PrivateRoute>
-              <Analytics />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/extension"
-          element={
-            <PrivateRoute>
-              <Extension />
-            </PrivateRoute>
-          }
-        />
       </Routes>
     </div>
   );

@@ -32,7 +32,6 @@ function NavItem({ to, label, onClick }) {
 export default function Navbar() {
   const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
   const [menuOpen, setMenuOpen] = useState(false);
-  const location = useLocation();
 
   useEffect(() => {
     if (theme === "dark") {
@@ -44,10 +43,6 @@ export default function Navbar() {
     }
   }, [theme]);
 
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [location.pathname]);
-
   function toggleTheme() {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   }
@@ -55,7 +50,11 @@ export default function Navbar() {
   return (
     <div className="border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-        <Link to="/" className="font-semibold text-gray-800 hover:text-blue-600 dark:text-white dark:hover:text-blue-400 transition">
+        <Link
+          to="/"
+          onClick={() => setMenuOpen(false)}
+          className="font-semibold text-gray-800 hover:text-blue-600 dark:text-white dark:hover:text-blue-400 transition"
+        >
           Internship Intelligence System
         </Link>
 

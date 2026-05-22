@@ -1,44 +1,22 @@
-import { useEffect, useState } from "react";
-import Navbar from "../components/Navbar";
+import { useState } from "react";
 import ErrorBox from "../components/ErrorBox";
 import SuggestionCard from "../components/suggestions/SuggestionCard";
 import LoadingState from "../components/common/LoadingState";
 import EmptyState from "../components/common/EmptyState";
-import { fetchPendingExpanded, confirmSuggestion, dismissSuggestion } from "../api/suggestions";
+import { useSuggestionActions, useSuggestions } from "../hooks/queries";
 
 export default function Suggestions() {
-  const [suggestions, setSuggestions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState(null);
-  const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
-
-  async function fetchSuggestions() {
-    try {
-      setLoading(true);
-      setError("");
-      setActionError("");
-
-      const data = await fetchPendingExpanded(50);
-      setSuggestions(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError("Could not load suggestions");
-      setSuggestions([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchSuggestions();
-  }, []);
+  const { data, error, isLoading: loading } = useSuggestions(50);
+  const { confirm, dismiss } = useSuggestionActions();
+  const suggestions = Array.isArray(data) ? data : [];
 
   async function handleConfirm(id) {
     try {
       setActionLoadingId(id);
       setActionError("");
-      await confirmSuggestion(id);
-      setSuggestions((prev) => prev.filter((item) => item.id !== id));
+      await confirm.mutateAsync(id);
     } catch (err) {
       setActionError(err?.message || "Confirm failed");
     } finally {
@@ -50,8 +28,7 @@ export default function Suggestions() {
     try {
       setActionLoadingId(id);
       setActionError("");
-      await dismissSuggestion(id);
-      setSuggestions((prev) => prev.filter((item) => item.id !== id));
+      await dismiss.mutateAsync(id);
     } catch (err) {
       setActionError(err?.message || "Dismiss failed");
     } finally {
@@ -61,7 +38,6 @@ export default function Suggestions() {
 
   return (
     <>
-      <Navbar />
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
@@ -75,7 +51,7 @@ export default function Suggestions() {
         {loading && <LoadingState text="Loading suggestions..." />}
 
         {!loading && (error || actionError) && (
-          <ErrorBox message={error || actionError} />
+          <ErrorBox message={error ? "Could not load suggestions" : actionError} />
         )}
 
         {!loading && !error && (

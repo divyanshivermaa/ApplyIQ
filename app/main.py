@@ -75,11 +75,12 @@ app.include_router(scoring_router)
 # Followup routes
 app.include_router(followups_router)
 
-from app.api.routes import admin_followups, analytics_overdue, analytics, resumes
+from app.api.routes import admin_followups, analytics_overdue, analytics, resumes, dashboard
 app.include_router(admin_followups.router)
 app.include_router(analytics_overdue.router)
 app.include_router(analytics.router)
 app.include_router(resumes.router)
+app.include_router(dashboard.router)
 
 @app.get("/health")
 def health():

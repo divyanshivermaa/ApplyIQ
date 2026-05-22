@@ -64,7 +64,20 @@ export async function apiFetch(path, options = {}) {
 
   if (res.status === 401) {
     clearToken();
-    if (window.location.pathname !== "/") window.location.href = "/";
+    const onAuthPage = ["/login", "/signup"].includes(window.location.pathname);
+    const isAuthRequest =
+      path.startsWith("/auth/login") || path.startsWith("/auth/register");
+
+    // Wrong credentials on login/signup: stay on page, show error (no redirect).
+    if (isAuthRequest) {
+      throw new Error(
+        toErrorMessage(data, "Incorrect email or password. Please try again.")
+      );
+    }
+
+    if (!onAuthPage && window.location.pathname !== "/") {
+      window.location.href = "/";
+    }
     throw new Error("Session expired / invalid token. Please login again.");
   }
 
