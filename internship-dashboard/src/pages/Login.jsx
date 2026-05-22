@@ -1,13 +1,19 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/auth";
+import { getToken } from "../api/client";
 
 export default function Login() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (getToken()) navigate("/dashboard", { replace: true });
+  }, [navigate]);
 
   async function handle(e) {
     e.preventDefault();
@@ -15,7 +21,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      window.location.href = "/dashboard";
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setMsg(err.message || "Login failed");
     } finally {

@@ -1,14 +1,20 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { register } from "../api/auth";
+import { getToken } from "../api/client";
 
 export default function Signup() {
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (getToken()) navigate("/dashboard", { replace: true });
+  }, [navigate]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -32,7 +38,7 @@ export default function Signup() {
     setLoading(true);
     try {
       await register(name.trim(), email.trim(), password);
-      window.location.href = "/dashboard";
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setMsg(err.message || "Registration failed.");
     } finally {
