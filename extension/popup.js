@@ -1,5 +1,7 @@
 ﻿// simple Hindi: popup ka kaam = active tab ko message bhejna aur jo data aaye wo form me bharna
 
+import { API_ROOT } from "./config.js";
+
 const $ = (id) => document.getElementById(id);
 
 let resumeSlot = "1";
@@ -50,7 +52,7 @@ function platformFromUrl(url) {
 }
 
 async function submitApplication(payload, token) {
-  const res = await fetch("http://127.0.0.1:8000/applications", {
+  const res = await fetch(`${API_ROOT}/applications`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

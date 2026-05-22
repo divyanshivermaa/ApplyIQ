@@ -1,4 +1,4 @@
-import { API_BASES } from "./config.js";
+import { API_ROOT, API_BASES } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -236,8 +236,8 @@ async function onSubmit() {
 
   setStatus("-");
   setErr(
-    "Submit failed: backend unreachable on 127.0.0.1:8000 and localhost:8000.\n" +
-    "Start backend: uvicorn app.main:app --host 127.0.0.1 --port 8000\n" +
+    `Submit failed: backend unreachable (${API_BASES.join(", ")}).\n` +
+    `Check API_ROOT in extension/config.js (current: ${API_ROOT}).\n` +
     `Last error: ${lastErr}`
   );
 }

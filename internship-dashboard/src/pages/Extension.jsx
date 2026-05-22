@@ -33,7 +33,7 @@ export default function Extension() {
             Set this in extension settings / config (if your extension asks for it).
           </div>
           <div className="mt-3 font-mono text-sm border rounded-xl p-3 bg-gray-50 break-all dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100">
-            http://127.0.0.1:8000
+            {import.meta.env.VITE_API_BASE_URL || "Set VITE_API_BASE_URL on Vercel"}
           </div>
         </div>
 
